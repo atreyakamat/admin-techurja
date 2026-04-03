@@ -13,6 +13,20 @@ class Registration extends Model
      * The attributes that are mass assignable.
      */
     protected $fillable = [
+        'teamName',
+        'needsAccommodation',
+        'participant1',
+        'email1',
+        'phone1',
+        'participant2',
+        'email2',
+        'phone2',
+        'participant3',
+        'email3',
+        'phone3',
+        'participant4',
+        'email4',
+        'phone4',
         'name',
         'email',
         'phone',
@@ -29,6 +43,7 @@ class Registration extends Model
      * Attribute casts.
      */
     protected $casts = [
+        'needsAccommodation' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

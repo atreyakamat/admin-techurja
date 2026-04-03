@@ -68,14 +68,14 @@
             <thead>
                 <tr>
                     <th>#</th>
+                    <th>TEAM NAME</th>
                     <th>NAME</th>
                     <th>EMAIL</th>
                     <th>PHONE</th>
                     <th>EVENT</th>
                     <th>UTR</th>
-                    <th>AMOUNT</th>
                     <th>STATUS</th>
-                    <th>REGISTERED</th>
+                    <th>ACCOMM</th>
                     <th>ACTIONS</th>
                 </tr>
             </thead>
@@ -84,19 +84,23 @@
                 <tr class="reg-row" data-id="{{ $reg->id }}" tabindex="0"
                     onclick="selectRow(this)" onkeydown="rowKeyHandler(event, this)">
                     <td>{{ $reg->id }}</td>
+                    <td style="color:var(--neon-cyan);font-weight:bold">{{ $reg->teamName }}</td>
                     <td>{{ $reg->name }}</td>
                     <td style="font-size:0.75rem">{{ $reg->email }}</td>
                     <td>{{ $reg->phone }}</td>
                     <td>{{ $reg->event }}</td>
                     <td class="utr-value">{{ $reg->utr_number ?: '—' }}</td>
-                    <td>₹{{ number_format($reg->amount, 0) }}</td>
                     <td>
                         <span class="badge badge-{{ $reg->status }}">
                             <span class="status-dot dot-{{ $reg->status }}"></span>{{ $reg->status_label }}
                         </span>
                     </td>
-                    <td style="font-size:0.75rem;color:var(--text-secondary)">
-                        {{ $reg->created_at?->format('d M Y') }}
+                    <td>
+                        @if($reg->needsAccommodation)
+                        <span style="color:var(--neon-yellow);font-size:0.7rem">✔ YES</span>
+                        @else
+                        <span style="color:var(--text-secondary);font-size:0.7rem">—</span>
+                        @endif
                     </td>
                     <td>
                         <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
@@ -182,37 +186,31 @@
             {{-- Right: Registration info + actions --}}
             <div>
                 <div class="info-list" id="modal-info">
-                    <div class="info-row">
-                        <span class="info-key">ID</span>
-                        <span class="info-val" id="mi-id">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-key">NAME</span>
-                        <span class="info-val" id="mi-name">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-key">EMAIL</span>
-                        <span class="info-val" id="mi-email">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-key">PHONE</span>
-                        <span class="info-val" id="mi-phone">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-key">COLLEGE</span>
-                        <span class="info-val" id="mi-college">—</span>
+                    <div class="info-row" style="border-bottom:2px solid var(--neon-cyan)">
+                        <span class="info-key">TEAM NAME</span>
+                        <span class="info-val" id="mi-teamName" style="font-size:1.1rem;font-weight:bold;color:var(--neon-cyan)">—</span>
                     </div>
                     <div class="info-row">
                         <span class="info-key">EVENT</span>
                         <span class="info-val" id="mi-event">—</span>
                     </div>
+                    <div class="info-row" id="mi-accom-row">
+                        <span class="info-key">ACCOMMODATION</span>
+                        <span class="info-val" id="mi-accom">—</span>
+                    </div>
+                    
+                    <div style="margin-top:1rem; border:1px solid var(--border-dim); padding:0.5rem">
+                        <div style="font-size:0.65rem;color:var(--text-secondary);letter-spacing:2px;margin-bottom:0.5rem">TEAM PARTICIPANTS</div>
+                        <div id="participant-list"></div>
+                    </div>
+
+                    <div class="info-row" style="background:#ffcc0011;margin-top:1rem">
+                        <span class="info-key">UTR NUMBER</span>
+                        <span class="info-val utr-value" id="mi-utr">—</span>
+                    </div>
                     <div class="info-row">
                         <span class="info-key">AMOUNT</span>
                         <span class="info-val" id="mi-amount">—</span>
-                    </div>
-                    <div class="info-row" style="background:#ffcc0011">
-                        <span class="info-key">UTR</span>
-                        <span class="info-val utr-value" id="mi-utr">—</span>
                     </div>
                     <div class="info-row">
                         <span class="info-key">STATUS</span>
@@ -221,6 +219,10 @@
                     <div class="info-row" id="mi-notes-row" style="display:none">
                         <span class="info-key">NOTES</span>
                         <span class="info-val" id="mi-notes" style="color:var(--neon-red)">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-key">COLLEGE</span>
+                        <span class="info-val" id="mi-college">—</span>
                     </div>
                     <div class="info-row">
                         <span class="info-key">DATE</span>
@@ -316,19 +318,33 @@
 // ============================================================
 @php
 $mappedRegistrations = $registrations->map(fn($r) => [
-    'id'               => $r->id,
-    'name'             => $r->name,
-    'email'            => $r->email,
-    'phone'            => $r->phone,
-    'college'          => $r->college,
-    'event'            => $r->event,
-    'utr_number'       => $r->utr_number,
-    'amount'           => $r->amount,
-    'status'           => $r->status,
-    'status_label'     => $r->status_label,
+    'id'                 => $r->id,
+    'teamName'           => $r->teamName,
+    'needsAccommodation' => $r->needsAccommodation,
+    'participant1'       => $r->participant1,
+    'email1'             => $r->email1,
+    'phone1'             => $r->phone1,
+    'participant2'       => $r->participant2,
+    'email2'             => $r->email2,
+    'phone2'             => $r->phone2,
+    'participant3'       => $r->participant3,
+    'email3'             => $r->email3,
+    'phone3'             => $r->phone3,
+    'participant4'       => $r->participant4,
+    'email4'             => $r->email4,
+    'phone4'             => $r->phone4,
+    'name'               => $r->name,
+    'email'              => $r->email,
+    'phone'              => $r->phone,
+    'college'            => $r->college,
+    'event'              => $r->event,
+    'utr_number'         => $r->utr_number,
+    'amount'             => $r->amount,
+    'status'             => $r->status,
+    'status_label'       => $r->status_label,
     'status_badge_class' => $r->status_badge_class,
-    'admin_notes'      => $r->admin_notes,
-    'created_at'       => $r->created_at?->format('d M Y, H:i'),
+    'admin_notes'        => $r->admin_notes,
+    'created_at'         => $r->created_at?->format('d M Y, H:i'),
 ]);
 @endphp
 let registrationsData = @json($mappedRegistrations);
@@ -400,18 +416,20 @@ function renderTable(data) {
         <tr class="reg-row" data-id="${r.id}" tabindex="0"
             onclick="selectRow(this)" onkeydown="rowKeyHandler(event, this)">
             <td>${r.id}</td>
+            <td style="color:var(--neon-cyan);font-weight:bold">${escHtml(r.teamName || '—')}</td>
             <td>${escHtml(r.name)}</td>
             <td style="font-size:0.75rem">${escHtml(r.email)}</td>
             <td>${escHtml(r.phone)}</td>
             <td>${escHtml(r.event)}</td>
             <td class="utr-value">${escHtml(r.utr_number || '—')}</td>
-            <td>₹${Number(r.amount || 0).toLocaleString('en-IN')}</td>
             <td>
                 <span class="badge ${r.status_badge_class}">
                     <span class="status-dot dot-${r.status}"></span>${r.status_label}
                 </span>
             </td>
-            <td style="font-size:0.75rem;color:var(--text-secondary)">${escHtml(r.created_at || '')}</td>
+            <td>
+                ${r.needsAccommodation ? `<span style="color:var(--neon-yellow);font-size:0.7rem">✔ YES</span>` : `<span style="color:var(--text-secondary);font-size:0.7rem">—</span>`}
+            </td>
             <td>
                 <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
                     <button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();openVerifyModal(${r.id})">👁 VIEW</button>
@@ -449,17 +467,45 @@ function openVerifyModal(id) {
 
     document.getElementById('modal-reg-id').textContent = '#' + id;
     document.getElementById('mi-id').textContent      = reg.id;
-    document.getElementById('mi-name').textContent    = reg.name;
-    document.getElementById('mi-email').textContent   = reg.email;
-    document.getElementById('mi-phone').textContent   = reg.phone;
-    document.getElementById('mi-college').textContent = reg.college || '—';
+    document.getElementById('mi-teamName').textContent = reg.teamName || '—';
     document.getElementById('mi-event').textContent   = reg.event;
     document.getElementById('mi-amount').textContent  = '₹' + Number(reg.amount || 0).toLocaleString('en-IN');
     document.getElementById('mi-utr').textContent     = reg.utr_number || '—';
     document.getElementById('mi-date').textContent    = reg.created_at || '—';
+    document.getElementById('mi-college').textContent = reg.college || '—';
 
     const statusEl = document.getElementById('mi-status');
     statusEl.innerHTML = `<span class="badge ${reg.status_badge_class}">${reg.status_label}</span>`;
+
+    const accomEl = document.getElementById('mi-accom');
+    accomEl.innerHTML = reg.needsAccommodation 
+        ? '<span style="color:var(--neon-yellow)">✔ REQUESTED</span>' 
+        : '<span style="color:var(--text-secondary)">NOT REQUESTED</span>';
+
+    // Populate participants
+    const pList = document.getElementById('participant-list');
+    let pHtml = '';
+    for(let i=1; i<=4; i++) {
+        const name = reg[`participant${i}`];
+        if(name) {
+            pHtml += `
+                <div style="font-size:0.75rem; margin-bottom:0.4rem; padding-bottom:0.4rem; border-bottom:1px solid #ffffff11">
+                    <div style="color:var(--neon-cyan)">${i}. ${escHtml(name)}</div>
+                    <div style="color:var(--text-secondary); font-size:0.65rem">${escHtml(reg[`email${i}`] || '—')} | ${escHtml(reg[`phone${i}`] || '—')}</div>
+                </div>
+            `;
+        }
+    }
+    // If no participants found but we have name/email/phone from migration v1, show them
+    if(!pHtml && reg.name) {
+        pHtml = `
+            <div style="font-size:0.75rem; margin-bottom:0.4rem; padding-bottom:0.4rem; border-bottom:1px solid #ffffff11">
+                <div style="color:var(--neon-cyan)">1. ${escHtml(reg.name)}</div>
+                <div style="color:var(--text-secondary); font-size:0.65rem">${escHtml(reg.email || '—')} | ${escHtml(reg.phone || '—')}</div>
+            </div>
+        `;
+    }
+    pList.innerHTML = pHtml || '<div style="color:var(--text-secondary); font-size:0.7rem">No participant details found.</div>';
 
     const notesRow = document.getElementById('mi-notes-row');
     if (reg.admin_notes) {

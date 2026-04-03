@@ -39,20 +39,34 @@ class DashboardController extends Controller
 
         return response()->json([
             'registrations' => $registrations->map(fn ($r) => [
-                'id'               => $r->id,
-                'name'             => $r->name,
-                'email'            => $r->email,
-                'phone'            => $r->phone,
-                'college'          => $r->college,
-                'event'            => $r->event,
-                'category'         => $r->category,
-                'utr_number'       => $r->utr_number,
-                'amount'           => $r->amount,
-                'status'           => $r->status,
-                'status_label'     => $r->status_label,
+                'id'                 => $r->id,
+                'teamName'           => $r->teamName,
+                'needsAccommodation' => $r->needsAccommodation,
+                'participant1'       => $r->participant1,
+                'email1'             => $r->email1,
+                'phone1'             => $r->phone1,
+                'participant2'       => $r->participant2,
+                'email2'             => $r->email2,
+                'phone2'             => $r->phone2,
+                'participant3'       => $r->participant3,
+                'email3'             => $r->email3,
+                'phone3'             => $r->phone3,
+                'participant4'       => $r->participant4,
+                'email4'             => $r->email4,
+                'phone4'             => $r->phone4,
+                'name'               => $r->name,
+                'email'              => $r->email,
+                'phone'              => $r->phone,
+                'college'            => $r->college,
+                'event'              => $r->event,
+                'category'           => $r->category,
+                'utr_number'         => $r->utr_number,
+                'amount'             => $r->amount,
+                'status'             => $r->status,
+                'status_label'       => $r->status_label,
                 'status_badge_class' => $r->status_badge_class,
-                'admin_notes'      => $r->admin_notes,
-                'created_at'       => $r->created_at?->format('d M Y, H:i'),
+                'admin_notes'        => $r->admin_notes,
+                'created_at'         => $r->created_at?->format('d M Y, H:i'),
             ]),
             'stats' => [
                 'total'    => Registration::count(),
@@ -79,7 +93,8 @@ class DashboardController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('utr_number', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('teamName', 'like', "%{$search}%");
             });
         }
 
