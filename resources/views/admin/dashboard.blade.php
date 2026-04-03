@@ -314,7 +314,8 @@
 // ============================================================
 // DATA STORE — populated server-side, updated via AJAX
 // ============================================================
-let registrationsData = @json($registrations->map(fn($r) => [
+@php
+$mappedRegistrations = $registrations->map(fn($r) => [
     'id'               => $r->id,
     'name'             => $r->name,
     'email'            => $r->email,
@@ -328,7 +329,9 @@ let registrationsData = @json($registrations->map(fn($r) => [
     'status_badge_class' => $r->status_badge_class,
     'admin_notes'      => $r->admin_notes,
     'created_at'       => $r->created_at?->format('d M Y, H:i'),
-]));
+]);
+@endphp
+let registrationsData = @json($mappedRegistrations);
 
 let currentModalId  = null;
 let currentQuickId  = null;
