@@ -8,11 +8,64 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
 /**
  * Admin dashboard: displays live registration feed.
  */
 class DashboardController extends Controller
 {
+    /**
+     * Export a master CSV of all registrations for coordinators.
+     */
+    public function exportMasterCsv(): StreamedResponse
+    {
+        $registrations = Registration::latest()->get();
+        $filename = "techurja_master_registrations_" . date('Ymd_His') . ".csv";
+
+        $headers = [
+            'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'COLLEGE', 'EVENT', 'CATEGORY', 
+            'UTR', 'AMOUNT', 'STATUS', 'ACCOMMODATION', 'ADMIN NOTES', 
+            'P1 NAME', 'P1 EMAIL', 'P1 PHONE',
+            'P2 NAME', 'P2 EMAIL', 'P2 PHONE',
+            'P3 NAME', 'P3 EMAIL', 'P3 PHONE',
+            'P4 NAME', 'P4 EMAIL', 'P4 PHONE',
+            'CREATED AT'
+        ];
+
+        return response()->streamDownload(function () use ($registrations, $headers) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $headers);
+
+            foreach ($registrations as $r) {
+                fputcsv($handle, [
+                    $r->id,
+                    $r->teamName,
+                    $r->name,
+                    $r->email,
+                    $r->phone,
+                    $r->college,
+                    $r->event,
+                    $r->category,
+                    $r->utr_number,
+                    $r->amount,
+                    $r->status,
+                    $r->needsAccommodation ? 'YES' : 'NO',
+                    $r->admin_notes,
+                    $r->participant1, $r->email1, $r->phone1,
+                    $r->participant2, $r->email2, $r->phone2,
+                    $r->participant3, $r->email3, $r->phone3,
+                    $r->participant4, $r->email4, $r->phone4,
+                    $r->created_at?->toDateTimeString(),
+                ]);
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
     /**
      * Main dashboard page (initial full-page load).
      */

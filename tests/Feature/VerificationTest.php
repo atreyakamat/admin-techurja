@@ -18,6 +18,7 @@ class VerificationTest extends TestCase
     private function createRegistration(array $overrides = []): Registration
     {
         return Registration::create(array_merge([
+            'teamName'   => 'Test Team',
             'name'       => 'Test User',
             'email'      => 'test@example.com',
             'phone'      => '9999999999',

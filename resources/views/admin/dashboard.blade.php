@@ -148,8 +148,11 @@
         <button class="btn btn-yellow" onclick="exportCategory()" style="align-self:flex-end">
             ⬇ BATCH EXPORT ZIP
         </button>
+        <button class="btn btn-cyan" onclick="exportMasterCsv()" style="align-self:flex-end">
+            📄 MASTER CSV
+        </button>
         <span style="font-size:0.72rem;color:var(--text-secondary);align-self:flex-end">
-            Exports entire category folder from FTP as .zip
+            Exports full DB data or ZIP from FTP
         </span>
     </div>
 </div>
@@ -726,6 +729,22 @@ async function exportCategory() {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/api/admin/export/${encodeURIComponent(category)}`;
+    const csrf = document.createElement('input');
+    csrf.type  = 'hidden';
+    csrf.name  = '_token';
+    csrf.value = window.CSRF_TOKEN;
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => document.body.removeChild(form), 1000);
+}
+
+async function exportMasterCsv() {
+    showToast('Generating Master CSV Export...', 'success');
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/api/admin/export-master`;
     const csrf = document.createElement('input');
     csrf.type  = 'hidden';
     csrf.name  = '_token';

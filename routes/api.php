@@ -34,4 +34,8 @@ Route::prefix('admin')->middleware(['web', 'admin.auth'])->group(function () {
     // Batch export (ZIP download)
     Route::post('/export/{category}', [FtpController::class, 'exportCategory'])
          ->name('api.admin.export');
+
+    // Master CSV export
+    Route::post('/export-master', [DashboardController::class, 'exportMasterCsv'])
+         ->name('api.admin.export-master');
 });
