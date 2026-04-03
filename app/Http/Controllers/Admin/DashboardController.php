@@ -25,7 +25,7 @@ class DashboardController extends Controller
 
         $headers = [
             'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'COLLEGE', 'EVENT', 'CATEGORY', 
-            'UTR', 'AMOUNT', 'STATUS', 'ACCOMMODATION', 'ADMIN NOTES', 
+            'TRANSACTION ID', 'AMOUNT', 'STATUS', 'ACCOMMODATION', 'ADMIN NOTES', 
             'P1 NAME', 'P1 EMAIL', 'P1 PHONE',
             'P2 NAME', 'P2 EMAIL', 'P2 PHONE',
             'P3 NAME', 'P3 EMAIL', 'P3 PHONE',
@@ -47,7 +47,7 @@ class DashboardController extends Controller
                     $r->college,
                     $r->event,
                     $r->category,
-                    $r->utr_number,
+                    $r->transactionId,
                     $r->amount,
                     $r->status,
                     $r->needsAccommodation ? 'YES' : 'NO',
@@ -113,8 +113,9 @@ class DashboardController extends Controller
                 'college'            => $r->college,
                 'event'              => $r->event,
                 'category'           => $r->category,
-                'utr_number'         => $r->utr_number,
+                'transactionId'      => $r->transactionId,
                 'amount'             => $r->amount,
+                'paymentScreenshot'  => $r->paymentScreenshot,
                 'status'             => $r->status,
                 'status_label'       => $r->status_label,
                 'status_badge_class' => $r->status_badge_class,
@@ -145,7 +146,7 @@ class DashboardController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('utr_number', 'like', "%{$search}%")
+                  ->orWhere('transactionId', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('teamName', 'like', "%{$search}%");
             });

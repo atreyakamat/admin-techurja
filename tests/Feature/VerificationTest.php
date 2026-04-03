@@ -25,7 +25,7 @@ class VerificationTest extends TestCase
             'college'    => 'Test College',
             'event'      => 'Hackathon',
             'category'   => 'technical',
-            'utr_number' => 'UTR123456',
+            'transactionId' => 'UTR123456',
             'amount'     => 500,
             'status'     => 'pending',
         ], $overrides));

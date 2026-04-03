@@ -73,7 +73,7 @@
                     <th>EMAIL</th>
                     <th>PHONE</th>
                     <th>EVENT</th>
-                    <th>UTR</th>
+                    <th>TRANSACTION ID</th>
                     <th>STATUS</th>
                     <th>ACCOMM</th>
                     <th>ACTIONS</th>
@@ -89,7 +89,7 @@
                     <td style="font-size:0.75rem">{{ $reg->email }}</td>
                     <td>{{ $reg->phone }}</td>
                     <td>{{ $reg->event }}</td>
-                    <td class="utr-value">{{ $reg->utr_number ?: '—' }}</td>
+                    <td class="utr-value">{{ $reg->transactionId ?: '—' }}</td>
                     <td>
                         <span class="badge badge-{{ $reg->status }}">
                             <span class="status-dot dot-{{ $reg->status }}"></span>{{ $reg->status_label }}
@@ -208,7 +208,7 @@
                     </div>
 
                     <div class="info-row" style="background:#ffcc0011;margin-top:1rem">
-                        <span class="info-key">UTR NUMBER</span>
+                        <span class="info-key">TRANSACTION ID</span>
                         <span class="info-val utr-value" id="mi-utr">—</span>
                     </div>
                     <div class="info-row">
@@ -341,8 +341,9 @@ $mappedRegistrations = $registrations->map(fn($r) => [
     'phone'              => $r->phone,
     'college'            => $r->college,
     'event'              => $r->event,
-    'utr_number'         => $r->utr_number,
+    'transactionId'      => $r->transactionId,
     'amount'             => $r->amount,
+    'paymentScreenshot'  => $r->paymentScreenshot,
     'status'             => $r->status,
     'status_label'       => $r->status_label,
     'status_badge_class' => $r->status_badge_class,
@@ -473,7 +474,7 @@ function openVerifyModal(id) {
     document.getElementById('mi-teamName').textContent = reg.teamName || '—';
     document.getElementById('mi-event').textContent   = reg.event;
     document.getElementById('mi-amount').textContent  = '₹' + Number(reg.amount || 0).toLocaleString('en-IN');
-    document.getElementById('mi-utr').textContent     = reg.utr_number || '—';
+    document.getElementById('mi-utr').textContent     = reg.transactionId || '—';
     document.getElementById('mi-date').textContent    = reg.created_at || '—';
     document.getElementById('mi-college').textContent = reg.college || '—';
 

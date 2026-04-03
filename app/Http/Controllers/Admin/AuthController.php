@@ -34,10 +34,10 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $adminPassword = env('ADMIN_PASSWORD', '');
+        $adminPassword = env('ADMIN_SECRET', '');
 
         if (empty($adminPassword)) {
-            return back()->withErrors(['password' => 'Admin password is not configured on the server.']);
+            return back()->withErrors(['password' => 'Admin secret is not configured on the server.']);
         }
 
         if (!hash_equals($adminPassword, $request->input('password'))) {

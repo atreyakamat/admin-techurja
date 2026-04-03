@@ -33,8 +33,9 @@ class Registration extends Model
         'college',
         'event',
         'category',
-        'utr_number',
+        'transactionId',
         'amount',
+        'paymentScreenshot',
         'status',
         'admin_notes',
     ];
@@ -92,11 +93,13 @@ class Registration extends Model
      */
     public function getStatusBadgeClassAttribute(): string
     {
-        return match ($this->status) {
-            self::STATUS_VERIFIED => 'badge-verified',
-            self::STATUS_REJECTED => 'badge-rejected',
-            default               => 'badge-pending',
-        };
+        if ($this->status === self::STATUS_VERIFIED) return 'badge-verified';
+        if ($this->status === self::STATUS_REJECTED) return 'badge-rejected';
+        if (str_starts_with($this->status, 'UPLOADED_TO_FTP')) return 'badge-verified';
+        if ($this->status === 'FTP_UPLOAD_FAILED') return 'badge-rejected';
+        if ($this->status === 'NO_SCREENSHOT') return 'badge-pending';
+        
+        return 'badge-pending';
     }
 
     /**

@@ -30,7 +30,13 @@ class FtpController extends Controller
         $registration = Registration::findOrFail($id);
 
         try {
-            $remotePath = $this->ftp->findReceiptImage($id);
+            // Priority 1: Use the path stored in paymentScreenshot if it looks like a file path
+            $remotePath = $registration->paymentScreenshot;
+
+            // If not a path (e.g. 'pending', 'UPLOADED_TO_FTP', etc), search the directory
+            if (!$remotePath || !str_contains($remotePath, '.')) {
+                $remotePath = $this->ftp->findReceiptImage($id);
+            }
 
             if ($remotePath === null) {
                 return response()->json(['error' => 'No receipt image found for this registration.'], 404);
