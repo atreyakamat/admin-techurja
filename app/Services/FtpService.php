@@ -292,6 +292,49 @@ class FtpService
         return $tempFiles;
     }
 
+    /**
+     * List all files under /registrations/ recursively (one level deep for IDs).
+     *
+     * @return array<array{path: string, registrationId: int|null}>
+     */
+    public function listAllRegistrationFiles(): array
+    {
+        $this->connect();
+        $allFiles = [];
+
+        try {
+            $baseEntries = $this->listFiles('/registrations');
+            
+            foreach ($baseEntries as $entry) {
+                // If it's a numeric directory (registration ID)
+                $id = basename($entry);
+                if (is_numeric($id)) {
+                    $subFiles = $this->listFiles($entry);
+                    foreach ($subFiles as $subFile) {
+                        $allFiles[] = [
+                            'path' => $subFile,
+                            'registrationId' => (int)$id
+                        ];
+                    }
+                } else {
+                    // It's a category or other folder
+                    $categoryFiles = $this->listFiles($entry);
+                    foreach ($categoryFiles as $catFile) {
+                        $subId = basename(dirname($catFile));
+                        $allFiles[] = [
+                            'path' => $catFile,
+                            'registrationId' => is_numeric($subId) ? (int)$subId : null
+                        ];
+                    }
+                }
+            }
+        } catch (RuntimeException $e) {
+            Log::error("FTP: listAllRegistrationFiles failed: " . $e->getMessage());
+        }
+
+        return $allFiles;
+    }
+
     public function __destruct()
     {
         $this->disconnect();

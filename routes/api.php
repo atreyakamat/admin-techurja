@@ -23,6 +23,10 @@ Route::prefix('admin')->middleware(['web', 'admin.auth'])->group(function () {
     Route::post('/verify/{id}/reset', [VerificationController::class, 'reset'])
          ->name('api.admin.verify.reset');
 
+    // FTP file listing (all registrations)
+    Route::get('/ftp-list', [FtpController::class, 'listAllFiles'])
+         ->name('api.admin.ftp-list');
+
     // FTP proxy – fetch receipt image (streamed securely)
     Route::get('/fetch-receipt/{id}', [FtpController::class, 'fetchReceipt'])
          ->name('api.admin.fetch-receipt');

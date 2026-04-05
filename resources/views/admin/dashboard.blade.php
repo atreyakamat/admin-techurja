@@ -157,6 +157,23 @@
     </div>
 </div>
 
+{{-- ===== FTP IMAGE BROWSER ===== --}}
+<div class="card" id="ftp-browser-card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>⬡ FTP IMAGE BROWSER (UNLINKED/ALL)</span>
+        <button class="btn btn-cyan btn-sm" onclick="loadFtpBrowser()">⟳ SCAN FTP</button>
+    </div>
+    <div id="ftp-browser-loading" style="display:none;padding:2rem;text-align:center;color:var(--text-secondary)">
+        <span class="spinner"></span> SCANNING FTP STORAGE...
+    </div>
+    <div class="ftp-gallery" id="ftp-gallery" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:1rem;margin-top:1rem">
+        <!-- Images injected here -->
+    </div>
+    <div id="ftp-browser-empty" style="padding:2rem;text-align:center;color:var(--text-secondary);font-size:0.8rem">
+        Click "SCAN FTP" to browse files directly from storage nodes.
+    </div>
+</div>
+
 {{-- ===================================================
      VERIFY / VIEW MODAL
      =================================================== --}}
@@ -386,6 +403,70 @@ async function refreshGrid() {
     }
 }
 
+// ============================================================
+// FTP BROWSER
+// ============================================================
+async function loadFtpBrowser() {
+    const gallery = document.getElementById('ftp-gallery');
+    const loading = document.getElementById('ftp-browser-loading');
+    const empty   = document.getElementById('ftp-browser-empty');
+
+    gallery.innerHTML = '';
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/admin/ftp-list', {
+            headers: { 'X-CSRF-TOKEN': window.CSRF_TOKEN, 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!data.files || data.files.length === 0) {
+            empty.textContent = 'No files found on FTP.';
+            empty.style.display = 'block';
+            return;
+        }
+
+        // Filter for images
+        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        const images = data.files.filter(f => {
+            const ext = f.path.split('.').pop().toLowerCase();
+            return imageExts.includes(ext);
+        });
+
+        if (images.length === 0) {
+            empty.textContent = 'No images found on FTP.';
+            empty.style.display = 'block';
+            return;
+        }
+
+        gallery.innerHTML = images.map(img => `
+            <div class="ftp-item" onclick="openVerifyModal(${img.registrationId})" style="cursor:pointer;border:1px solid var(--border-dim);padding:0.5rem;background:#000;border-radius:4px;transition:0.2s">
+                <div style="height:100px;overflow:hidden;background:#111;display:flex;align-items:center;justify-content:center;margin-bottom:0.5rem">
+                    <img src="/api/admin/fetch-receipt/${img.registrationId}" style="max-width:100%;max-height:100%" loading="lazy">
+                </div>
+                <div style="font-size:0.6rem;color:var(--neon-cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ID: ${img.registrationId || 'Unknown'}</div>
+                <div style="font-size:0.5rem;color:var(--text-secondary)">${img.path.split('/').pop()}</div>
+            </div>
+        `).join('');
+
+        // Add hover effect style if not present
+        if (!document.getElementById('ftp-hover-style')) {
+            const style = document.createElement('style');
+            style.id = 'ftp-hover-style';
+            style.innerHTML = '.ftp-item:hover { border-color: var(--neon-cyan); transform: scale(1.05); box-shadow: 0 0 10px var(--neon-cyan-dim); }';
+            document.head.appendChild(style);
+        }
+
+    } catch (e) {
+        showToast('FTP Scan failed: ' + e.message, 'error');
+        empty.textContent = 'Failed to scan FTP.';
+        empty.style.display = 'block';
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
 function buildFilterParams() {
     const p = new URLSearchParams();
     const s = document.getElementById('filter-search').value.trim();
@@ -421,6 +502,7 @@ function renderTable(data) {
             onclick="selectRow(this)" onkeydown="rowKeyHandler(event, this)">
             <td>${r.id}</td>
             <td style="color:var(--neon-cyan);font-weight:bold">${escHtml(r.teamName || '—')}</td>
+            <td style="font-size:0.75rem;color:var(--neon-yellow)">${escHtml(r.reg_type || '—')}</td>
             <td>${escHtml(r.name)}</td>
             <td style="font-size:0.75rem">${escHtml(r.email)}</td>
             <td>${escHtml(r.phone)}</td>

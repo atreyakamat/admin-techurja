@@ -119,6 +119,24 @@ class FtpController extends Controller
     }
 
     /**
+     * List all files in the FTP registrations directory.
+     *
+     * GET /api/admin/ftp-list
+     */
+    public function listAllFiles(): JsonResponse
+    {
+        try {
+            $files = $this->ftp->listAllRegistrationFiles();
+            return response()->json(['files' => $files]);
+        } catch (RuntimeException $e) {
+            Log::error("FTP list failed: " . $e->getMessage());
+            return response()->json(['error' => 'Unable to list FTP files.'], 502);
+        } finally {
+            $this->ftp->disconnect();
+        }
+    }
+
+    /**
      * Map a file extension to a MIME type (images only).
      */
     private function extensionToMime(string $ext): string
