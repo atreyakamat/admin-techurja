@@ -15,6 +15,15 @@ class AdminAuthentication
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $adminSecret = env('ADMIN_SECRET');
+        $token = $request->bearerToken();
+
+        // Allow if Bearer token matches ADMIN_SECRET (Stateless for React SPA)
+        if ($token && hash_equals($adminSecret ?? '', $token)) {
+            return $next($request);
+        }
+
+        // Fallback: Check standard session-based auth
         if (!$request->session()->get('admin_authenticated', false)) {
             if ($request->expectsJson()) {
                 return response()->json(['error' => 'Unauthorized'], 401);
