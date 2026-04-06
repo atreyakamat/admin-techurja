@@ -45,7 +45,7 @@ class DashboardController extends Controller
                     $r->email,
                     $r->phone,
                     $r->institution,
-                    $r->event,
+                    $r->eventName, // Using eventName from Prisma
                     $r->category,
                     $r->transactionId,
                     $r->amount,
@@ -53,11 +53,11 @@ class DashboardController extends Controller
                     $r->isAccepted ? 'YES' : 'NO',
                     $r->needsAccommodation ? 'YES' : 'NO',
                     $r->adminNotes,
-                    $r->participant1, $r->email1, $r->phone1,
+                    $r->name, $r->email, $r->phone, // Mapping V1 fields for P1
                     $r->participant2, $r->email2, $r->phone2,
                     $r->participant3, $r->email3, $r->phone3,
                     $r->participant4, $r->email4, $r->phone4,
-                    $r->created_at?->toDateTimeString(),
+                    $r->createdAt?->toDateTimeString(),
                 ]);
             }
             fclose($handle);
@@ -74,9 +74,9 @@ class DashboardController extends Controller
     {
         $stats = [
             'total'    => Registration::count(),
-            'pending'  => Registration::byStatus('pending')->count(),
-            'verified' => Registration::byStatus('verified')->count(),
-            'rejected' => Registration::byStatus('rejected')->count(),
+            'pending'  => Registration::where('status', 'pending')->count(),
+            'verified' => Registration::where('status', 'verified')->count(),
+            'rejected' => Registration::where('status', 'rejected')->count(),
         ];
 
         $registrations = $this->getRegistrations($request);
@@ -96,9 +96,9 @@ class DashboardController extends Controller
                 'id'                 => $r->id,
                 'teamName'           => $r->teamName,
                 'needsAccommodation' => $r->needsAccommodation,
-                'participant1'       => $r->participant1,
-                'email1'             => $r->email1,
-                'phone1'             => $r->phone1,
+                'name'               => $r->name,
+                'email'              => $r->email,
+                'phone'              => $r->phone,
                 'participant2'       => $r->participant2,
                 'email2'             => $r->email2,
                 'phone2'             => $r->phone2,
@@ -108,11 +108,8 @@ class DashboardController extends Controller
                 'participant4'       => $r->participant4,
                 'email4'             => $r->email4,
                 'phone4'             => $r->phone4,
-                'name'               => $r->name,
-                'email'              => $r->email,
-                'phone'              => $r->phone,
                 'institution'        => $r->institution,
-                'event'              => $r->event,
+                'event'              => $r->eventName,
                 'category'           => $r->category,
                 'transactionId'      => $r->transactionId,
                 'amount'             => $r->amount,
@@ -122,13 +119,13 @@ class DashboardController extends Controller
                 'status_label'       => $r->status_label,
                 'status_badge_class' => $r->status_badge_class,
                 'adminNotes'         => $r->adminNotes,
-                'created_at'         => $r->created_at?->format('d M Y, H:i'),
+                'created_at'         => $r->createdAt?->format('d M Y, H:i'),
             ]),
             'stats' => [
                 'total'    => Registration::count(),
-                'pending'  => Registration::byStatus('pending')->count(),
-                'verified' => Registration::byStatus('verified')->count(),
-                'rejected' => Registration::byStatus('rejected')->count(),
+                'pending'  => Registration::where('status', 'pending')->count(),
+                'verified' => Registration::where('status', 'verified')->count(),
+                'rejected' => Registration::where('status', 'rejected')->count(),
             ],
         ]);
     }
@@ -138,15 +135,15 @@ class DashboardController extends Controller
      */
     private function getRegistrations(Request $request)
     {
-        $query = Registration::query()->latest();
+        $query = Registration::query()->orderBy('createdAt', 'desc');
 
         if ($status = $request->input('status')) {
-            $query->byStatus($status);
+            $query->where('status', $status);
         }
 
         if ($isAccepted = $request->input('isAccepted')) {
             if ($isAccepted !== 'all') {
-                $query->accepted($isAccepted === '1');
+                $query->where('isAccepted', $isAccepted === '1' ? 1 : 0);
             }
         }
 
@@ -162,11 +159,11 @@ class DashboardController extends Controller
         }
 
         if ($event = $request->input('event')) {
-            $query->where('event', $event);
+            $query->where('eventName', 'like', "%{$event}%");
         }
 
         if ($category = $request->input('category')) {
-            $query->where('category', $category);
+            $query->where('category', 'like', "%{$category}%");
         }
 
         if ($institution = $request->input('institution')) {

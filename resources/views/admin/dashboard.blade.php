@@ -104,11 +104,14 @@
                     <td>{{ $reg->name }}</td>
                     <td style="font-size:0.75rem">{{ $reg->email }}</td>
                     <td>{{ $reg->phone }}</td>
-                    <td>{{ $reg->event }}</td>
+                    <td>{{ $reg->eventName }}</td>
                     <td class="utr-value">{{ $reg->transactionId ?: '—' }}</td>
                     <td>
                         <span class="badge badge-{{ $reg->status }}">
                             <span class="status-dot dot-{{ $reg->status }}"></span>{{ $reg->status_label }}
+                            @if($reg->isAccepted)
+                                <span style="color:var(--neon-green);margin-left:5px">●</span>
+                            @endif
                         </span>
                     </td>
                     <td>
@@ -369,7 +372,7 @@ $mappedRegistrations = $registrations->map(fn($r) => [
     'email'              => $r->email,
     'phone'              => $r->phone,
     'institution'        => $r->institution,
-    'event'              => $r->event,
+    'eventName'          => $r->eventName,
     'category'           => $r->category,
     'transactionId'      => $r->transactionId,
     'amount'             => $r->amount,
@@ -379,7 +382,7 @@ $mappedRegistrations = $registrations->map(fn($r) => [
     'status_label'       => $r->status_label,
     'status_badge_class' => $r->status_badge_class,
     'adminNotes'         => $r->adminNotes,
-    'created_at'         => $r->created_at?->format('d M Y, H:i'),
+    'createdAt'          => $r->createdAt?->format('d M Y, H:i'),
 ]);
 @endphp
 let registrationsData = @json($mappedRegistrations);
@@ -530,7 +533,7 @@ function renderTable(data) {
             <td>${escHtml(r.name)}</td>
             <td style="font-size:0.75rem">${escHtml(r.email)}</td>
             <td>${escHtml(r.phone)}</td>
-            <td>${escHtml(r.event)}</td>
+            <td>${escHtml(r.eventName)}</td>
             <td class="utr-value">${escHtml(r.transactionId || '—')}</td>
             <td>
                 <span class="badge ${r.status_badge_class}">
@@ -578,7 +581,7 @@ function openVerifyModal(id) {
 
     document.getElementById('modal-reg-id').textContent = '#' + id;
     document.getElementById('mi-teamName').textContent = reg.teamName || '—';
-    document.getElementById('mi-event').textContent   = reg.event;
+    document.getElementById('mi-event').textContent   = reg.eventName;
     document.getElementById('mi-amount').textContent  = '₹' + Number(reg.amount || 0).toLocaleString('en-IN');
     document.getElementById('mi-utr').textContent     = reg.transactionId || '—';
     document.getElementById('mi-institution').textContent = reg.institution || '—';

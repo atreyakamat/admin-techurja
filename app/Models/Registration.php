@@ -4,20 +4,33 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Registration extends Model
 {
     use HasFactory;
 
     /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'registrations';
+
+    /**
+     * Constants for verification status.
+     */
+    const STATUS_PENDING  = 'pending';
+    const STATUS_VERIFIED = 'verified';
+    const STATUS_REJECTED = 'rejected';
+
+    /**
      * The attributes that are mass assignable.
+     *
+     * @var array
      */
     protected $fillable = [
-        'teamName',
-        'needsAccommodation',
-        'participant1',
-        'email1',
-        'phone1',
+        'name',
         'participant2',
         'email2',
         'phone2',
@@ -27,97 +40,63 @@ class Registration extends Model
         'participant4',
         'email4',
         'phone4',
-        'name',
+        'teamName',
         'email',
         'phone',
         'institution',
-        'event',
-        'category',
+        'eventSlug',
+        'eventName',
         'transactionId',
-        'amount',
         'paymentScreenshot',
         'status',
         'isAccepted',
         'adminNotes',
+        'needsAccommodation',
+        'eventId',
+        'createdAt',
     ];
+
+    /**
+     * Customize timestamp column names to match Prisma schema.
+     */
+    const CREATED_AT = 'createdAt';
+    const UPDATED_AT = null; // Registration model in Prisma doesn't have updatedAt
 
     /**
      * Attribute casts.
      */
     protected $casts = [
         'needsAccommodation' => 'boolean',
-        'isAccepted' => 'boolean',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'isAccepted'         => 'integer',
+        'createdAt'          => 'datetime',
     ];
 
     /**
-     * Status constants.
+     * Get the event associated with the registration.
      */
-    const STATUS_PENDING  = 'pending';
-    const STATUS_VERIFIED = 'verified';
-    const STATUS_REJECTED = 'rejected';
-
-    /**
-     * Scope: filter by status.
-     */
-    public function scopeByStatus($query, string $status)
+    public function event(): BelongsTo
     {
-        return $query->where('status', $status);
+        return $this->belongsTo(Event::class, 'eventId');
     }
 
     /**
-     * Scope: filter by acceptance status.
-     */
-    public function scopeAccepted($query, $bool)
-    {
-        return $query->where('isAccepted', (int) $bool);
-    }
-
-    /**
-     * Check if payment is pending verification.
-     */
-    public function isPending(): bool
-    {
-        return $this->status === self::STATUS_PENDING;
-    }
-
-    /**
-     * Check if payment is verified.
-     */
-    public function isVerified(): bool
-    {
-        return $this->status === self::STATUS_VERIFIED;
-    }
-
-    /**
-     * Check if payment is rejected.
-     */
-    public function isRejected(): bool
-    {
-        return $this->status === self::STATUS_REJECTED;
-    }
-
-    /**
-     * Get the CSS badge class based on status.
-     */
-    public function getStatusBadgeClassAttribute(): string
-    {
-        if ($this->status === self::STATUS_VERIFIED) return 'badge-verified';
-        if ($this->status === self::STATUS_REJECTED) return 'badge-rejected';
-        if (str_starts_with($this->status, 'UPLOADED_TO_FTP')) return 'badge-verified';
-        if ($this->status === 'FTP_UPLOAD_FAILED') return 'badge-rejected';
-        if ($this->status === 'NO_SCREENSHOT') return 'badge-pending';
-        
-        return 'badge-pending';
-    }
-
-    /**
-     * Get the human-readable status label.
+     * Human-readable status label.
      */
     public function getStatusLabelAttribute(): string
     {
         return strtoupper($this->status);
+    }
+
+    /**
+     * CSS badge class based on status.
+     */
+    public function getStatusBadgeClassAttribute(): string
+    {
+        return match ($this->status) {
+            self::STATUS_VERIFIED => 'badge-verified',
+            self::STATUS_REJECTED => 'badge-rejected',
+            default               => 'badge-pending',
+        };
     }
 
     /**
