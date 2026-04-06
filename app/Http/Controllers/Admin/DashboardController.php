@@ -10,11 +10,42 @@ use Illuminate\View\View;
 
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+use App\Services\FtpService;
+use Illuminate\Support\Facades\DB;
+
 /**
  * Admin dashboard: displays live registration feed.
  */
 class DashboardController extends Controller
 {
+    /**
+     * Check connectivity for MySQL and FTP.
+     */
+    public function checkStatus(FtpService $ftp): JsonResponse
+    {
+        $dbStatus = false;
+        try {
+            DB::connection()->getPdo();
+            $dbStatus = true;
+        } catch (\Exception $e) {
+            \Log::error("Status Check - DB Error: " . $e->getMessage());
+        }
+
+        $ftpStatus = false;
+        try {
+            $ftp->connect();
+            $ftpStatus = true;
+            $ftp->disconnect();
+        } catch (\Exception $e) {
+            \Log::error("Status Check - FTP Error: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'database' => $dbStatus,
+            'ftp'      => $ftpStatus,
+        ]);
+    }
+
     /**
      * Shared query builder for registrations with comprehensive filtering.
      */

@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->middleware(['web', 'admin.auth'])->group(function () {
 
+    // System connectivity status
+    Route::get('/status', [DashboardController::class, 'checkStatus'])
+         ->name('api.admin.status');
+
     // Live registration feed (REFRESH_GRID)
     Route::get('/registrations', [DashboardController::class, 'refresh'])
          ->name('api.admin.registrations');

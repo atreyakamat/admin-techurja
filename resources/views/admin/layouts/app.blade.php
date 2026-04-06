@@ -486,7 +486,19 @@
 
 @if(request()->session()->get('admin_authenticated'))
 <header class="top-bar">
-    <div class="logo">⚡ TECHURJA <span>ADMIN</span></div>
+    <div style="display:flex;align-items:center;gap:2rem">
+        <div class="logo">⚡ TECHURJA <span>ADMIN</span></div>
+        <div id="system-status" style="display:flex;gap:1.5rem;font-size:0.6rem;letter-spacing:1px;border-left:1px solid var(--border-dim);padding-left:1.5rem">
+            <div style="display:flex;align-items:center;gap:0.5rem">
+                <span id="db-status-dot" class="status-dot" style="background:var(--text-secondary);margin:0"></span>
+                <span style="color:var(--text-secondary)">DB:</span> <span id="db-status-text">...</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+                <span id="ftp-status-dot" class="status-dot" style="background:var(--text-secondary);margin:0"></span>
+                <span style="color:var(--text-secondary)">FTP:</span> <span id="ftp-status-text">...</span>
+            </div>
+        </div>
+    </div>
     <nav>
         <a href="{{ route('admin.dashboard') }}">DASHBOARD</a>
         <form action="{{ route('admin.logout') }}" method="POST" style="display:inline">
@@ -526,6 +538,43 @@ function showToast(message, type = 'success') {
         toast.style.transition = 'opacity 0.4s';
         setTimeout(() => toast.remove(), 400);
     }, 3500);
+}
+
+// System status check
+async function checkSystemStatus() {
+    const dbDot = document.getElementById('db-status-dot');
+    const dbText = document.getElementById('db-status-text');
+    const ftpDot = document.getElementById('ftp-status-dot');
+    const ftpText = document.getElementById('ftp-status-text');
+
+    if (!dbDot) return;
+
+    try {
+        const res = await fetch('/api/admin/status');
+        const data = await res.json();
+
+        // Update DB
+        dbDot.style.background = data.database ? 'var(--neon-green)' : 'var(--neon-red)';
+        dbDot.style.boxShadow = data.database ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)';
+        dbText.textContent = data.database ? 'ONLINE' : 'OFFLINE';
+        dbText.style.color = data.database ? 'var(--neon-green)' : 'var(--neon-red)';
+
+        // Update FTP
+        ftpDot.style.background = data.ftp ? 'var(--neon-green)' : 'var(--neon-red)';
+        ftpDot.style.boxShadow = data.ftp ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)';
+        ftpText.textContent = data.ftp ? 'CONNECTED' : 'FAILED';
+        ftpText.style.color = data.ftp ? 'var(--neon-green)' : 'var(--neon-red)';
+
+    } catch (e) {
+        if (dbDot) dbDot.style.background = 'var(--neon-red)';
+        if (ftpDot) ftpDot.style.background = 'var(--neon-red)';
+    }
+}
+
+// Initial check and periodic polling
+if (document.getElementById('system-status')) {
+    checkSystemStatus();
+    setInterval(checkSystemStatus, 30000); // Check every 30 seconds
 }
 </script>
 @stack('scripts')
