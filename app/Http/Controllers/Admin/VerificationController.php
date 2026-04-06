@@ -20,34 +20,35 @@ class VerificationController extends Controller
      *
      * Body:
      *   action      string  "approve" | "reject"
-     *   admin_notes string  Optional rejection reason
+     *   adminNotes  string  Optional rejection reason
      */
     public function verify(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
-            'action'      => ['required', Rule::in(['approve', 'reject'])],
-            'admin_notes' => ['nullable', 'string', 'max:500'],
+            'action'     => ['required', Rule::in(['approve', 'reject'])],
+            'adminNotes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $registration = Registration::findOrFail($id);
 
-        $newStatus = $validated['action'] === 'approve'
-            ? Registration::STATUS_VERIFIED
-            : Registration::STATUS_REJECTED;
+        $isApprove = $validated['action'] === 'approve';
+        $newStatus = $isApprove ? Registration::STATUS_VERIFIED : Registration::STATUS_REJECTED;
 
         $registration->update([
-            'status'      => $newStatus,
-            'admin_notes' => $validated['admin_notes'] ?? null,
+            'status'     => $newStatus,
+            'isAccepted' => $isApprove ? 1 : 0,
+            'adminNotes' => $validated['adminNotes'] ?? null,
         ]);
 
         return response()->json([
-            'success'      => true,
-            'id'           => $registration->id,
-            'status'       => $registration->status,
-            'status_label' => $registration->status_label,
+            'success'            => true,
+            'id'                 => $registration->id,
+            'status'             => $registration->status,
+            'isAccepted'         => $registration->isAccepted,
+            'status_label'       => $registration->status_label,
             'status_badge_class' => $registration->status_badge_class,
-            'admin_notes'  => $registration->admin_notes,
-            'message'      => "Registration #{$id} has been " . strtoupper($newStatus) . '.',
+            'adminNotes'         => $registration->adminNotes,
+            'message'            => "Registration #{$id} has been " . strtoupper($newStatus) . '.',
         ]);
     }
 
@@ -61,17 +62,19 @@ class VerificationController extends Controller
         $registration = Registration::findOrFail($id);
 
         $registration->update([
-            'status'      => Registration::STATUS_PENDING,
-            'admin_notes' => null,
+            'status'     => Registration::STATUS_PENDING,
+            'isAccepted' => 0,
+            'adminNotes' => null,
         ]);
 
         return response()->json([
-            'success'      => true,
-            'id'           => $registration->id,
-            'status'       => $registration->status,
-            'status_label' => $registration->status_label,
+            'success'            => true,
+            'id'                 => $registration->id,
+            'status'             => $registration->status,
+            'isAccepted'         => $registration->isAccepted,
+            'status_label'       => $registration->status_label,
             'status_badge_class' => $registration->status_badge_class,
-            'message'      => "Registration #{$id} reset to PENDING.",
+            'message'            => "Registration #{$id} reset to PENDING.",
         ]);
     }
 }

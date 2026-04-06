@@ -43,6 +43,22 @@
                 <option value="rejected">REJECTED</option>
             </select>
         </div>
+        <div class="filter-group" style="max-width:140px">
+            <label>Accepted Status</label>
+            <select id="filter-accepted">
+                <option value="all">ALL</option>
+                <option value="1">ACCEPTED</option>
+                <option value="0">NOT ACCEPTED</option>
+            </select>
+        </div>
+        <div class="filter-group" style="max-width:140px">
+            <label>Category</label>
+            <input type="text" id="filter-category" placeholder="e.g. technical">
+        </div>
+        <div class="filter-group" style="max-width:140px">
+            <label>Institution</label>
+            <input type="text" id="filter-institution" placeholder="College name…">
+        </div>
         <div class="filter-group" style="max-width:160px">
             <label>Event</label>
             <input type="text" id="filter-event" placeholder="Event name…">
@@ -241,12 +257,8 @@
                         <span class="info-val" id="mi-notes" style="color:var(--neon-red)">—</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-key">COLLEGE</span>
-                        <span class="info-val" id="mi-college">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-key">DATE</span>
-                        <span class="info-val" id="mi-date">—</span>
+                        <span class="info-key">INSTITUTION</span>
+                        <span class="info-val" id="mi-institution">—</span>
                     </div>
                 </div>
 
@@ -356,15 +368,17 @@ $mappedRegistrations = $registrations->map(fn($r) => [
     'name'               => $r->name,
     'email'              => $r->email,
     'phone'              => $r->phone,
-    'college'            => $r->college,
+    'institution'        => $r->institution,
     'event'              => $r->event,
+    'category'           => $r->category,
     'transactionId'      => $r->transactionId,
     'amount'             => $r->amount,
     'paymentScreenshot'  => $r->paymentScreenshot,
     'status'             => $r->status,
+    'isAccepted'         => $r->isAccepted,
     'status_label'       => $r->status_label,
     'status_badge_class' => $r->status_badge_class,
-    'admin_notes'        => $r->admin_notes,
+    'adminNotes'         => $r->adminNotes,
     'created_at'         => $r->created_at?->format('d M Y, H:i'),
 ]);
 @endphp
@@ -471,16 +485,27 @@ function buildFilterParams() {
     const p = new URLSearchParams();
     const s = document.getElementById('filter-search').value.trim();
     const st = document.getElementById('filter-status').value;
+    const acc = document.getElementById('filter-accepted').value;
+    const cat = document.getElementById('filter-category').value.trim();
+    const ins = document.getElementById('filter-institution').value.trim();
     const ev = document.getElementById('filter-event').value.trim();
-    if (s)  p.set('search', s);
-    if (st) p.set('status', st);
-    if (ev) p.set('event', ev);
+
+    if (s)   p.set('search', s);
+    if (st)  p.set('status', st);
+    if (acc) p.set('isAccepted', acc);
+    if (cat) p.set('category', cat);
+    if (ins) p.set('institution', ins);
+    if (ev)  p.set('event', ev);
+
     return p.toString();
 }
 
 function clearFilters() {
     document.getElementById('filter-search').value = '';
     document.getElementById('filter-status').value = '';
+    document.getElementById('filter-accepted').value = 'all';
+    document.getElementById('filter-category').value = '';
+    document.getElementById('filter-institution').value = '';
     document.getElementById('filter-event').value  = '';
     refreshGrid();
 }
@@ -502,15 +527,15 @@ function renderTable(data) {
             onclick="selectRow(this)" onkeydown="rowKeyHandler(event, this)">
             <td>${r.id}</td>
             <td style="color:var(--neon-cyan);font-weight:bold">${escHtml(r.teamName || '—')}</td>
-            <td style="font-size:0.75rem;color:var(--neon-yellow)">${escHtml(r.reg_type || '—')}</td>
             <td>${escHtml(r.name)}</td>
             <td style="font-size:0.75rem">${escHtml(r.email)}</td>
             <td>${escHtml(r.phone)}</td>
             <td>${escHtml(r.event)}</td>
-            <td class="utr-value">${escHtml(r.utr_number || '—')}</td>
+            <td class="utr-value">${escHtml(r.transactionId || '—')}</td>
             <td>
                 <span class="badge ${r.status_badge_class}">
                     <span class="status-dot dot-${r.status}"></span>${r.status_label}
+                    ${r.isAccepted ? '<span style="color:var(--neon-green);margin-left:5px">●</span>' : ''}
                 </span>
             </td>
             <td>
@@ -552,16 +577,14 @@ function openVerifyModal(id) {
     currentModalId = id;
 
     document.getElementById('modal-reg-id').textContent = '#' + id;
-    document.getElementById('mi-id').textContent      = reg.id;
     document.getElementById('mi-teamName').textContent = reg.teamName || '—';
     document.getElementById('mi-event').textContent   = reg.event;
     document.getElementById('mi-amount').textContent  = '₹' + Number(reg.amount || 0).toLocaleString('en-IN');
     document.getElementById('mi-utr').textContent     = reg.transactionId || '—';
-    document.getElementById('mi-date').textContent    = reg.created_at || '—';
-    document.getElementById('mi-college').textContent = reg.college || '—';
+    document.getElementById('mi-institution').textContent = reg.institution || '—';
 
     const statusEl = document.getElementById('mi-status');
-    statusEl.innerHTML = `<span class="badge ${reg.status_badge_class}">${reg.status_label}</span>`;
+    statusEl.innerHTML = `<span class="badge ${reg.status_badge_class}">${reg.status_label}</span> ${reg.isAccepted ? '<span style="color:var(--neon-green)">● ACCEPTED</span>' : ''}`;
 
     const accomEl = document.getElementById('mi-accom');
     accomEl.innerHTML = reg.needsAccommodation 
@@ -594,9 +617,9 @@ function openVerifyModal(id) {
     pList.innerHTML = pHtml || '<div style="color:var(--text-secondary); font-size:0.7rem">No participant details found.</div>';
 
     const notesRow = document.getElementById('mi-notes-row');
-    if (reg.admin_notes) {
+    if (reg.adminNotes) {
         notesRow.style.display = 'flex';
-        document.getElementById('mi-notes').textContent = reg.admin_notes;
+        document.getElementById('mi-notes').textContent = reg.adminNotes;
     } else {
         notesRow.style.display = 'none';
     }
@@ -823,16 +846,22 @@ async function exportCategory() {
 }
 
 async function exportMasterCsv() {
-    showToast('Generating Master CSV Export...', 'success');
+    showToast('Generating Master CSV Export (Applying current filters)...', 'success');
 
+    const params = new URLSearchParams(buildFilterParams());
+    
+    // Trigger download via form submit to handle CSRF and POST if needed, 
+    // but here we use the filters from the UI.
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = `/api/admin/export-master`;
+    form.action = `/api/admin/export-master?` + params.toString();
+    
     const csrf = document.createElement('input');
     csrf.type  = 'hidden';
     csrf.name  = '_token';
     csrf.value = window.CSRF_TOKEN;
     form.appendChild(csrf);
+    
     document.body.appendChild(form);
     form.submit();
     setTimeout(() => document.body.removeChild(form), 1000);
@@ -921,7 +950,7 @@ document.getElementById('reject-modal').addEventListener('click', function(e) {
 
 // Debounce filter inputs for auto-refresh
 let filterTimeout;
-['filter-search', 'filter-status', 'filter-event'].forEach(id => {
+['filter-search', 'filter-status', 'filter-accepted', 'filter-category', 'filter-institution', 'filter-event'].forEach(id => {
     const el = document.getElementById(id);
     const event = el.tagName === 'SELECT' ? 'change' : 'input';
     el.addEventListener(event, () => {

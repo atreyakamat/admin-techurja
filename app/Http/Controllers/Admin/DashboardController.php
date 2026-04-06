@@ -18,14 +18,14 @@ class DashboardController extends Controller
     /**
      * Export a master CSV of all registrations for coordinators.
      */
-    public function exportMasterCsv(): StreamedResponse
+    public function exportMasterCsv(Request $request): StreamedResponse
     {
-        $registrations = Registration::latest()->get();
+        $registrations = $this->getRegistrations($request);
         $filename = "techurja_master_registrations_" . date('Ymd_His') . ".csv";
 
         $headers = [
-            'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'COLLEGE', 'EVENT', 'CATEGORY', 
-            'TRANSACTION ID', 'AMOUNT', 'STATUS', 'ACCOMMODATION', 'ADMIN NOTES', 
+            'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'INSTITUTION', 'EVENT', 'CATEGORY', 
+            'TRANSACTION ID', 'AMOUNT', 'STATUS', 'ACCEPTED', 'ACCOMMODATION', 'ADMIN NOTES', 
             'P1 NAME', 'P1 EMAIL', 'P1 PHONE',
             'P2 NAME', 'P2 EMAIL', 'P2 PHONE',
             'P3 NAME', 'P3 EMAIL', 'P3 PHONE',
@@ -44,14 +44,15 @@ class DashboardController extends Controller
                     $r->name,
                     $r->email,
                     $r->phone,
-                    $r->college,
+                    $r->institution,
                     $r->event,
                     $r->category,
                     $r->transactionId,
                     $r->amount,
                     $r->status,
+                    $r->isAccepted ? 'YES' : 'NO',
                     $r->needsAccommodation ? 'YES' : 'NO',
-                    $r->admin_notes,
+                    $r->adminNotes,
                     $r->participant1, $r->email1, $r->phone1,
                     $r->participant2, $r->email2, $r->phone2,
                     $r->participant3, $r->email3, $r->phone3,
@@ -110,16 +111,17 @@ class DashboardController extends Controller
                 'name'               => $r->name,
                 'email'              => $r->email,
                 'phone'              => $r->phone,
-                'college'            => $r->college,
+                'institution'        => $r->institution,
                 'event'              => $r->event,
                 'category'           => $r->category,
                 'transactionId'      => $r->transactionId,
                 'amount'             => $r->amount,
                 'paymentScreenshot'  => $r->paymentScreenshot,
                 'status'             => $r->status,
+                'isAccepted'         => $r->isAccepted,
                 'status_label'       => $r->status_label,
                 'status_badge_class' => $r->status_badge_class,
-                'admin_notes'        => $r->admin_notes,
+                'adminNotes'         => $r->adminNotes,
                 'created_at'         => $r->created_at?->format('d M Y, H:i'),
             ]),
             'stats' => [
@@ -142,18 +144,33 @@ class DashboardController extends Controller
             $query->byStatus($status);
         }
 
+        if ($isAccepted = $request->input('isAccepted')) {
+            if ($isAccepted !== 'all') {
+                $query->accepted($isAccepted === '1');
+            }
+        }
+
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('transactionId', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('teamName', 'like', "%{$search}%");
+                  ->orWhere('teamName', 'like', "%{$search}%")
+                  ->orWhere('institution', 'like', "%{$search}%");
             });
         }
 
         if ($event = $request->input('event')) {
             $query->where('event', $event);
+        }
+
+        if ($category = $request->input('category')) {
+            $query->where('category', $category);
+        }
+
+        if ($institution = $request->input('institution')) {
+            $query->where('institution', 'like', "%{$institution}%");
         }
 
         return $query->get();

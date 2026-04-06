@@ -30,14 +30,15 @@ class Registration extends Model
         'name',
         'email',
         'phone',
-        'college',
+        'institution',
         'event',
         'category',
         'transactionId',
         'amount',
         'paymentScreenshot',
         'status',
-        'admin_notes',
+        'isAccepted',
+        'adminNotes',
     ];
 
     /**
@@ -45,6 +46,7 @@ class Registration extends Model
      */
     protected $casts = [
         'needsAccommodation' => 'boolean',
+        'isAccepted' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -62,6 +64,14 @@ class Registration extends Model
     public function scopeByStatus($query, string $status)
     {
         return $query->where('status', $status);
+    }
+
+    /**
+     * Scope: filter by acceptance status.
+     */
+    public function scopeAccepted($query, $bool)
+    {
+        return $query->where('isAccepted', (int) $bool);
     }
 
     /**
