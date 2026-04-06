@@ -16,55 +16,71 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class DashboardController extends Controller
 {
     /**
-     * Export a master CSV of all registrations for coordinators.
+     * Shared query builder for registrations with comprehensive filtering.
      */
-    public function exportMasterCsv(Request $request): StreamedResponse
+    private function getRegistrations(Request $request)
     {
-        $registrations = $this->getRegistrations($request);
-        $filename = "techurja_master_registrations_" . date('Ymd_His') . ".csv";
+        $query = Registration::query()
+            ->select('registrations.*')
+            ->leftJoin('events', 'registrations.eventId', '=', 'events.id')
+            ->orderBy('registrations.createdAt', 'desc');
 
-        $headers = [
-            'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'INSTITUTION', 'EVENT', 'CATEGORY', 
-            'TRANSACTION ID', 'AMOUNT', 'STATUS', 'ACCEPTED', 'ACCOMMODATION', 'ADMIN NOTES', 
-            'P1 NAME', 'P1 EMAIL', 'P1 PHONE',
-            'P2 NAME', 'P2 EMAIL', 'P2 PHONE',
-            'P3 NAME', 'P3 EMAIL', 'P3 PHONE',
-            'P4 NAME', 'P4 EMAIL', 'P4 PHONE',
-            'CREATED AT'
-        ];
+        // Filter: Status
+        if ($status = $request->input('status')) {
+            $query->where('registrations.status', $status);
+        }
 
-        return response()->streamDownload(function () use ($registrations, $headers) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, $headers);
-
-            foreach ($registrations as $r) {
-                fputcsv($handle, [
-                    $r->id,
-                    $r->teamName,
-                    $r->name,
-                    $r->email,
-                    $r->phone,
-                    $r->institution,
-                    $r->eventName, // Using eventName from Prisma
-                    $r->category,
-                    $r->transactionId,
-                    $r->amount,
-                    $r->status,
-                    $r->isAccepted ? 'YES' : 'NO',
-                    $r->needsAccommodation ? 'YES' : 'NO',
-                    $r->adminNotes,
-                    $r->name, $r->email, $r->phone, // Mapping V1 fields for P1
-                    $r->participant2, $r->email2, $r->phone2,
-                    $r->participant3, $r->email3, $r->phone3,
-                    $r->participant4, $r->email4, $r->phone4,
-                    $r->createdAt?->toDateTimeString(),
-                ]);
+        // Filter: Verification Toggle
+        if ($isAccepted = $request->input('isAccepted')) {
+            if ($isAccepted !== 'all') {
+                $query->where('registrations.isAccepted', $isAccepted === '1' ? 1 : 0);
             }
-            fclose($handle);
-        }, $filename, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+        }
+
+        // Filter: Global Search
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('registrations.name', 'like', "%{$search}%")
+                  ->orWhere('registrations.email', 'like', "%{$search}%")
+                  ->orWhere('registrations.transactionId', 'like', "%{$search}%")
+                  ->orWhere('registrations.phone', 'like', "%{$search}%")
+                  ->orWhere('registrations.teamName', 'like', "%{$search}%")
+                  ->orWhere('registrations.institution', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter: Event Name (exact or partial)
+        if ($event = $request->input('event')) {
+            $query->where('registrations.eventName', 'like', "%{$event}%");
+        }
+
+        // Filter: Event Category (from join)
+        if ($category = $request->input('category')) {
+            $query->where('events.category', 'like', "%{$category}%");
+        }
+
+        // Filter: Institution
+        if ($institution = $request->input('institution')) {
+            $query->where('registrations.institution', 'like', "%{$institution}%");
+        }
+
+        // Filter: Registration Date Range
+        if ($regFrom = $request->input('reg_from')) {
+            $query->whereDate('registrations.createdAt', '>=', $regFrom);
+        }
+        if ($regTo = $request->input('reg_to')) {
+            $query->whereDate('registrations.createdAt', '<=', $regTo);
+        }
+
+        // Filter: Event Date Range
+        if ($eventFrom = $request->input('event_from')) {
+            $query->whereDate('events.date', '>=', $eventFrom);
+        }
+        if ($eventTo = $request->input('event_to')) {
+            $query->whereDate('events.date', '<=', $eventTo);
+        }
+
+        return $query->get();
     }
 
     /**
@@ -110,9 +126,8 @@ class DashboardController extends Controller
                 'phone4'             => $r->phone4,
                 'institution'        => $r->institution,
                 'event'              => $r->eventName,
-                'category'           => $r->category,
+                'category'           => $r->event?->category ?? 'N/A',
                 'transactionId'      => $r->transactionId,
-                'amount'             => $r->amount,
                 'paymentScreenshot'  => $r->paymentScreenshot,
                 'status'             => $r->status,
                 'isAccepted'         => $r->isAccepted,
@@ -131,45 +146,53 @@ class DashboardController extends Controller
     }
 
     /**
-     * Shared query builder for registrations.
+     * Export a master CSV of all registrations for coordinators.
      */
-    private function getRegistrations(Request $request)
+    public function exportMasterCsv(Request $request): StreamedResponse
     {
-        $query = Registration::query()->orderBy('createdAt', 'desc');
+        $registrations = $this->getRegistrations($request);
+        $filename = "techurja_master_registrations_" . date('Ymd_His') . ".csv";
 
-        if ($status = $request->input('status')) {
-            $query->where('status', $status);
-        }
+        $headers = [
+            'ID', 'TEAM NAME', 'NAME', 'EMAIL', 'PHONE', 'INSTITUTION', 'EVENT', 'CATEGORY', 
+            'TRANSACTION ID', 'STATUS', 'ACCEPTED', 'ACCOMMODATION', 'ADMIN NOTES', 
+            'P1 NAME', 'P1 EMAIL', 'P1 PHONE',
+            'P2 NAME', 'P2 EMAIL', 'P2 PHONE',
+            'P3 NAME', 'P3 EMAIL', 'P3 PHONE',
+            'P4 NAME', 'P4 EMAIL', 'P4 PHONE',
+            'CREATED AT'
+        ];
 
-        if ($isAccepted = $request->input('isAccepted')) {
-            if ($isAccepted !== 'all') {
-                $query->where('isAccepted', $isAccepted === '1' ? 1 : 0);
+        return response()->streamDownload(function () use ($registrations, $headers) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $headers);
+
+            foreach ($registrations as $r) {
+                fputcsv($handle, [
+                    $r->id,
+                    $r->teamName,
+                    $r->name,
+                    $r->email,
+                    $r->phone,
+                    $r->institution,
+                    $r->eventName,
+                    $r->event?->category ?? 'N/A',
+                    $r->transactionId,
+                    $r->status,
+                    $r->isAccepted ? 'YES' : 'NO',
+                    $r->needsAccommodation ? 'YES' : 'NO',
+                    $r->adminNotes,
+                    $r->name, $r->email, $r->phone,
+                    $r->participant2, $r->email2, $r->phone2,
+                    $r->participant3, $r->email3, $r->phone3,
+                    $r->participant4, $r->email4, $r->phone4,
+                    $r->createdAt?->toDateTimeString(),
+                ]);
             }
-        }
-
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('transactionId', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('teamName', 'like', "%{$search}%")
-                  ->orWhere('institution', 'like', "%{$search}%");
-            });
-        }
-
-        if ($event = $request->input('event')) {
-            $query->where('eventName', 'like', "%{$event}%");
-        }
-
-        if ($category = $request->input('category')) {
-            $query->where('category', 'like', "%{$category}%");
-        }
-
-        if ($institution = $request->input('institution')) {
-            $query->where('institution', 'like', "%{$institution}%");
-        }
-
-        return $query->get();
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
     }
 }
