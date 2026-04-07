@@ -559,22 +559,22 @@ export default function AdminDashboard() {
                             <span className="info-key">LEAD</span>
                             <span className="info-val">{verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
                         </div>
-                        {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && (
+                        {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && verifyModalReg.participant2 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 2</span>
-                                <span className="info-val">{verifyModalReg.participant2}</span>
+                                <span className="info-val">{verifyModalReg.participant2} <br/> <small className="text-secondary">{verifyModalReg.email2 || '—'} | {verifyModalReg.phone2 || '—'}</small></span>
                             </div>
                         )}
-                        {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && (
+                        {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && verifyModalReg.participant3 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 3</span>
-                                <span className="info-val">{verifyModalReg.participant3}</span>
+                                <span className="info-val">{verifyModalReg.participant3} <br/> <small className="text-secondary">{verifyModalReg.email3 || '—'} | {verifyModalReg.phone3 || '—'}</small></span>
                             </div>
                         )}
-                        {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && (
+                        {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && verifyModalReg.participant4 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 4</span>
-                                <span className="info-val">{verifyModalReg.participant4}</span>
+                                <span className="info-val">{verifyModalReg.participant4} <br/> <small className="text-secondary">{verifyModalReg.email4 || '—'} | {verifyModalReg.phone4 || '—'}</small></span>
                             </div>
                         )}
                     </div>

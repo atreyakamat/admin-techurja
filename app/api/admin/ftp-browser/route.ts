@@ -14,7 +14,37 @@ async function getFtpClient() {
   return client;
 }
 
-async function readCsvFromFtp(client: ftp.Client, path: string): Promise<any | null> {
+function parseCsvContent(csvContent: string): Record<string, string> {
+  const records = parse(csvContent, {
+    skip_empty_lines: true,
+    trim: true,
+    relax_quotes: true,
+  });
+
+  const isKeyValue = records.length > 0 && records.every((r: any) => r.length === 2);
+
+  if (isKeyValue) {
+    const result: Record<string, string> = {};
+    for (const row of records) {
+      result[row[0]] = row[1] || '';
+    }
+    return result;
+  }
+
+  if (records.length >= 2) {
+    const headers = records[0];
+    const data = records[1];
+    const result: Record<string, string> = {};
+    headers.forEach((h: string, i: number) => {
+      result[h] = data[i] || '';
+    });
+    return result;
+  }
+
+  return {};
+}
+
+async function readCsvFromFtp(client: ftp.Client, path: string): Promise<Record<string, string> | null> {
   try {
     const chunks: Buffer[] = [];
     const { Writable } = await import('stream');
@@ -27,8 +57,7 @@ async function readCsvFromFtp(client: ftp.Client, path: string): Promise<any | n
     await client.downloadTo(writable, path);
     const buffer = Buffer.concat(chunks);
     const csvContent = buffer.toString('utf-8');
-    const records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
-    return records.length > 0 ? records[0] : null;
+    return parseCsvContent(csvContent);
   } catch {
     return null;
   }
@@ -156,12 +185,14 @@ export async function GET(request: NextRequest) {
 
       if (isCsv) {
         const csvContent = buffer.toString('utf-8');
-        const records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
+        const parsed = parseCsvContent(csvContent);
+        const columns = Object.keys(parsed);
         return NextResponse.json({
           csvPath: path,
-          columns: records.length > 0 ? Object.keys(records[0] as object) : [],
-          rows: records,
-          rawText: csvContent
+          columns,
+          rows: [parsed],
+          rawText: csvContent,
+          isKeyValue: true,
         });
       }
 

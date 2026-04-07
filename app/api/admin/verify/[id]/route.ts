@@ -33,7 +33,6 @@ export async function POST(
 
     const csvPath = `/registrations/${id}/details.csv`;
     
-    // Download the current CSV
     const chunks: Buffer[] = [];
     const { Writable } = await import('stream');
     const writable = new Writable({
@@ -46,27 +45,53 @@ export async function POST(
     await client.downloadTo(writable, csvPath);
     const csvContent = Buffer.concat(chunks).toString('utf-8');
 
-    // Parse the CSV
     const records = parse(csvContent, {
-      columns: true,
+      columns: false,
       skip_empty_lines: true,
       trim: true
     });
 
     if (records.length === 0) {
        client.close();
-       return NextResponse.json({ error: 'Record not found in CSV' }, { status: 404 });
+       return NextResponse.json({ error: 'Record not found' }, { status: 404 });
     }
 
-    const reg: any = records[0];
-    reg.status = newStatus;
-    reg.isAccepted = isApprove ? '1' : '0';
-    reg.adminNotes = adminNotes || '';
+    const isKeyValue = records.every((r: any) => r.length === 2);
+    let newCsvContent = "";
 
-    // Generate new CSV content
-    const newCsvContent = stringify([reg], { header: true });
+    if (isKeyValue) {
+        // Update the key-value pairs
+        let foundStatus = false;
+        let foundAccepted = false;
+        let foundNotes = false;
 
-    // Upload the modified CSV
+        const updated = records.map((r: any) => {
+            const key = r[0].trim().toLowerCase();
+            if (key === 'status') { foundStatus = true; return ['status', newStatus]; }
+            if (key === 'isaccepted' || key === 'accepted') { foundAccepted = true; return [r[0], isApprove ? '1' : '0']; }
+            if (key === 'adminnotes' || key === 'admin_notes') { foundNotes = true; return [r[0], adminNotes || '']; }
+            return r;
+        });
+
+        if (!foundStatus) updated.push(['status', newStatus]);
+        if (!foundAccepted) updated.push(['isAccepted', isApprove ? '1' : '0']);
+        if (!foundNotes) updated.push(['adminNotes', adminNotes || '']);
+
+        newCsvContent = stringify(updated);
+    } else {
+        // Update tabular format
+        const headers = records[0];
+        const data = records[1] || [];
+        const record: any = {};
+        headers.forEach((h: string, i: number) => { record[h] = data[i]; });
+
+        record.status = newStatus;
+        record.isAccepted = isApprove ? '1' : '0';
+        record.adminNotes = adminNotes || '';
+
+        newCsvContent = stringify([record], { header: true });
+    }
+
     const sourceStream = Readable.from(Buffer.from(newCsvContent, 'utf-8'));
     await client.uploadFrom(sourceStream, csvPath);
 
@@ -78,7 +103,6 @@ export async function POST(
     });
   } catch (error: any) {
     client.close();
-    console.error('Verify API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -15,6 +15,36 @@ async function getFtpClient() {
   return client;
 }
 
+function parseCsvContent(csvContent: string): Record<string, string> {
+  const records = parse(csvContent, {
+    skip_empty_lines: true,
+    trim: true,
+    relax_quotes: true,
+  });
+
+  const isKeyValue = records.length > 0 && records.every((r: any) => r.length === 2);
+
+  if (isKeyValue) {
+    const result: Record<string, string> = {};
+    for (const row of records) {
+      result[row[0]] = row[1] || '';
+    }
+    return result;
+  }
+
+  if (records.length >= 2) {
+    const headers = records[0];
+    const data = records[1];
+    const result: Record<string, string> = {};
+    headers.forEach((h: string, i: number) => {
+      result[h] = data[i] || '';
+    });
+    return result;
+  }
+
+  return {};
+}
+
 export async function GET(request: NextRequest) {
   const adminSecret = process.env.ADMIN_SECRET;
   const authHeader = request.headers.get('authorization');
@@ -36,7 +66,6 @@ export async function GET(request: NextRequest) {
   let client;
   try {
     client = await getFtpClient();
-    
     const registrationsPath = '/registrations/';
     
     let folders: ftp.FileInfo[] = [];
@@ -67,49 +96,70 @@ export async function GET(request: NextRequest) {
         const buffer = Buffer.concat(chunks);
         const csvContent = buffer.toString('utf-8');
         
-        const records = parse(csvContent, {
-          columns: true,
-          skip_empty_lines: true,
-          trim: true
-        });
+        const record = parseCsvContent(csvContent);
         
-        if (records.length > 0) {
-           const reg: any = records[0];
-           
-           reg.id = reg.id || folderName;
-           reg.institution = reg.institution || reg['Institution Name'] || reg['college'] || reg['College'] || '—';
-           reg.isAccepted = parseInt(reg.isAccepted || '0');
-           reg.status = reg.status || 'pending';
-           reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
-           reg.createdAt = reg.createdAt || new Date().toISOString();
+        if (Object.keys(record).length === 0) continue;
 
-           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''}`.toLowerCase();
-           let match = true;
-           
-           if (search && !searchString.includes(search)) match = false;
-           if (statusFilter && reg.status !== statusFilter) match = false;
-           if (eventFilter && !(reg.eventName || '').toLowerCase().includes(eventFilter)) match = false;
-           if (categoryFilter && !(reg.category || '').toLowerCase().includes(categoryFilter)) match = false;
-           if (isAcceptedFilter !== 'all') {
-             const acceptedVal = isAcceptedFilter === 'accepted' ? 1 : 0;
-             if (reg.isAccepted !== acceptedVal) match = false;
-           }
-           if (regFrom) {
-             const regDate = new Date(reg.createdAt);
-             const fromDate = new Date(regFrom);
-             if (regDate < fromDate) match = false;
-           }
-           if (regTo) {
-             const regDate = new Date(reg.createdAt);
-             const toDate = new Date(regTo);
-             toDate.setHours(23, 59, 59, 999);
-             if (regDate > toDate) match = false;
-           }
+        const getVal = (keys: string[]) => {
+          for (const k of keys) {
+            const foundKey = Object.keys(record).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+            if (foundKey !== undefined) {
+              const val = record[foundKey];
+              if (val && val.toUpperCase() !== 'N/A') return val;
+            }
+          }
+          return undefined;
+        };
 
-           if (match) {
-               registrations.push(reg);
-           }
+        const reg: any = {};
+        reg.id = folderName;
+        reg.name = getVal(['name']) || '—';
+        reg.email = getVal(['email']) || '—';
+        reg.phone = getVal(['phone']) || '—';
+        reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
+        reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
+        reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
+        reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
+        
+        for (let i = 2; i <= 4; i++) {
+          reg[`participant${i}`] = getVal([`participant${i}`, `Participant ${i} Name`]) || '—';
+          reg[`email${i}`] = getVal([`email${i}`, `Participant ${i} Email`]) || '—';
+          reg[`phone${i}`] = getVal([`phone${i}`, `Participant ${i} Phone`]) || '—';
         }
+
+        const status = getVal(['status', 'Status']) || 'pending';
+        reg.status = status.toLowerCase();
+        reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
+        
+        const accom = String(getVal(['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
+        reg.needsAccommodation = ['YES', 'TRUE', '1', 'NEEDED'].includes(accom);
+        
+        reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
+
+        const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName}`.toLowerCase();
+        let match = true;
+        
+        if (search && !searchString.includes(search)) match = false;
+        if (statusFilter && reg.status !== statusFilter) match = false;
+        if (eventFilter && !reg.eventName.toLowerCase().includes(eventFilter)) match = false;
+        if (categoryFilter && !(reg.category || '').toLowerCase().includes(categoryFilter)) match = false;
+        if (isAcceptedFilter !== 'all') {
+          const acceptedVal = isAcceptedFilter === 'accepted' ? 1 : 0;
+          if (reg.isAccepted !== acceptedVal) match = false;
+        }
+        if (regFrom) {
+          const regDate = new Date(reg.createdAt);
+          const fromDate = new Date(regFrom);
+          if (regDate < fromDate) match = false;
+        }
+        if (regTo) {
+          const regDate = new Date(reg.createdAt);
+          const toDate = new Date(regTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (regDate > toDate) match = false;
+        }
+
+        if (match) registrations.push(reg);
       } catch (e) {
         console.warn(`[FTP_SKIP]: Failed to fetch details.csv for ${folderName}`);
       }
@@ -124,7 +174,7 @@ export async function GET(request: NextRequest) {
       'P2 Name', 'P2 Email', 'P2 Phone',
       'P3 Name', 'P3 Email', 'P3 Phone',
       'P4 Name', 'P4 Email', 'P4 Phone',
-      'Institution', 'UTR', 'Accommodation', 'Status', 'Admin Notes', 'Date'
+      'Institution', 'UTR', 'Accommodation', 'Status', 'Date'
     ];
 
     const rows = registrations.map(reg => [
@@ -141,7 +191,6 @@ export async function GET(request: NextRequest) {
       reg.transactionId || '—',
       reg.needsAccommodation ? 'YES' : 'NO',
       reg.status,
-      reg.adminNotes || '—',
       new Date(reg.createdAt).toLocaleDateString()
     ]);
 
