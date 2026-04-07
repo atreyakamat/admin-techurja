@@ -251,6 +251,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteRegistration = async (id: string) => {
+    if (!confirm(`Are you sure you want to PERMANENTLY DELETE registration #${id} and all its files from the FTP server? This cannot be undone.`)) return;
+    try {
+      setLoading(true);
+      await axiosInstance.post('/ftp/delete', { path: `/registrations/${id}`, type: 'dir' });
+      showToast(`Registration #${id} and associated files deleted.`, 'success');
+      fetchRegistrations();
+      if (verifyModalReg && verifyModalReg.id === id) setVerifyModalReg(null);
+    } catch (e: any) {
+      showToast(e.response?.data?.error || 'Deletion failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openVerifyModal = (reg: any) => {
     setVerifyModalReg(reg);
     setReceiptUrl('');
@@ -393,7 +408,11 @@ export default function AdminDashboard() {
                             <div style={{ display: 'flex', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
                               <button className="btn btn-cyan btn-sm" title="View Details" onClick={() => openVerifyModal(reg)}>👁</button>
                               {reg.status !== 'verified' && <button className="btn btn-green btn-sm" title="Approve" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
-                              {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" title="Reject" onClick={() => setRejectModalId(reg.id)}>✘</button>}
+                              {reg.status !== 'rejected' ? (
+                                <button className="btn btn-red btn-sm" title="Reject" onClick={() => setRejectModalId(reg.id)}>✘</button>
+                              ) : (
+                                <button className="btn btn-red btn-sm" title="Delete Record" onClick={() => deleteRegistration(reg.id)}>🗑</button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -696,8 +715,12 @@ export default function AdminDashboard() {
                     </div>
 
                     <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
-                      <button className="btn btn-green" style={{ flex: 1 }} onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>
-                      <button className="btn btn-red" style={{ flex: 1 }} onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
+                      {verifyModalReg.status !== 'verified' && <button className="btn btn-green" style={{ flex: 1 }} onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>}
+                      {verifyModalReg.status !== 'rejected' ? (
+                        <button className="btn btn-red" style={{ flex: 1 }} onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
+                      ) : (
+                        <button className="btn btn-red" style={{ flex: 1 }} onClick={() => deleteRegistration(verifyModalReg.id)}>🗑 DELETE RECORD</button>
+                      )}
                     </div>
                     {showRejectNotesInput && (
                       <div style={{ marginTop: '1rem', border: '1px solid var(--neon-red)', padding: '0.75rem' }}>
