@@ -10,10 +10,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let ftpStatus = false;
+  const { searchParams } = new URL(request.url);
+  const path = searchParams.get('path') || '/';
 
   const client = new ftp.Client();
-  client.ftp.verbose = false;
   try {
     await client.access({
       host: process.env.FTP_HOST,
@@ -22,16 +22,21 @@ export async function GET(request: NextRequest) {
       port: parseInt(process.env.FTP_PORT || '21'),
       secure: false,
     });
-    console.log(`[FTP_CONNECT] - Status Check`);
-    ftpStatus = true;
-    client.close();
-    console.log(`[FTP_DISCONNECT] - Status Check`);
-  } catch (e: any) {
-    console.log(`[FTP_ERROR_${e.code || 'STATUS_CHECK'}]: ${e.message}`);
-    console.error('FTP Status Check Failed:', e);
-  }
 
-  return NextResponse.json({
-    ftp: ftpStatus,
-  });
+    const list = await client.list(path);
+    client.close();
+
+    return NextResponse.json({
+      path,
+      files: list.map(f => ({
+        name: f.name,
+        size: f.size,
+        type: f.isDirectory ? 'dir' : 'file',
+        modifiedAt: f.modifiedAt
+      }))
+    });
+  } catch (error: any) {
+    client.close();
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

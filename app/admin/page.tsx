@@ -10,6 +10,7 @@ export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState('feed'); // 'feed' or 'explorer'
   
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, rejected: 0 });
@@ -18,11 +19,10 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{message: string, type: string} | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-    const savedToken = localStorage.getItem('adminToken');
-    if (savedToken) setToken(savedToken);
-  }, []);
+  // Explorer State
+  const [explorerPath, setExplorerPath] = useState('/registrations');
+  const [explorerFiles, setExplorerFiles] = useState<any[]>([]);
+  const [explorerLoading, setExplorerLoading] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -37,6 +37,13 @@ export default function AdminDashboard() {
   const [showRejectNotesInput, setShowRejectNotesInput] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
   const [receiptError, setReceiptError] = useState(false);
+  const [showRawData, setShowRawData] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const savedToken = localStorage.getItem('adminToken');
+    if (savedToken) setToken(savedToken);
+  }, []);
 
   const axiosInstance = axios.create({
     baseURL: API_BASE_URL,
@@ -72,7 +79,7 @@ export default function AdminDashboard() {
   };
 
   const fetchRegistrations = useCallback(async () => {
-    if (!token) return;
+    if (!token || activeTab !== 'feed') return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -93,26 +100,41 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [filters, token]);
+  }, [filters, token, activeTab]);
+
+  const fetchExplorer = useCallback(async (path: string) => {
+    if (!token || activeTab !== 'explorer') return;
+    setExplorerLoading(true);
+    try {
+      const res = await axiosInstance.get(`/ftp/list?path=${encodeURIComponent(path)}`);
+      setExplorerFiles(res.data.files);
+      setExplorerPath(res.data.path);
+    } catch (e: any) {
+      showToast('Failed to list directory', 'error');
+    } finally {
+      setExplorerLoading(false);
+    }
+  }, [token, activeTab]);
 
   useEffect(() => {
     if (token) {
       fetchSystemStatus();
-      fetchRegistrations();
+      if (activeTab === 'feed') fetchRegistrations();
+      if (activeTab === 'explorer') fetchExplorer(explorerPath);
       const interval = setInterval(fetchSystemStatus, 30000);
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, activeTab]);
 
   // Debounce filter changes
   useEffect(() => {
-    if (token) {
+    if (token && activeTab === 'feed') {
       const delay = setTimeout(() => {
         fetchRegistrations();
       }, 600);
       return () => clearTimeout(delay);
     }
-  }, [filters, fetchRegistrations, token]);
+  }, [filters, fetchRegistrations, token, activeTab]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -144,6 +166,7 @@ export default function AdminDashboard() {
     setReceiptError(false);
     setShowRejectNotesInput(false);
     setRejectNotes('');
+    setShowRawData(false);
     
     // Fetch blob for protected stream
     axiosInstance.get(`/ftp/fetch?id=${reg.id}`, { responseType: 'blob' })
@@ -183,6 +206,8 @@ export default function AdminDashboard() {
     }
   };
 
+  if (!mounted) return null;
+
   if (!token) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -221,63 +246,105 @@ export default function AdminDashboard() {
           </div>
         </div>
         <nav style={{ display: 'flex', gap: '1rem' }}>
+          <button className={`btn btn-sm ${activeTab === 'feed' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('feed')}>FEED</button>
+          <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>EXPLORER</button>
           <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT CSV</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
       </header>
 
       <main className="main-container">
-        <div className="stats-grid">
-          <div className="stat-box stat-total"><div className="stat-num">{stats.total}</div><div className="stat-label">TOTAL</div></div>
-          <div className="stat-box stat-pending"><div className="stat-num">{stats.pending}</div><div className="stat-label">PENDING</div></div>
-          <div className="stat-box stat-verified"><div className="stat-num">{stats.verified}</div><div className="stat-label">VERIFIED</div></div>
-          <div className="stat-box stat-rejected"><div className="stat-num">{stats.rejected}</div><div className="stat-label">REJECTED</div></div>
-        </div>
+        {activeTab === 'feed' ? (
+          <>
+            <div className="stats-grid">
+              <div className="stat-box stat-total"><div className="stat-num">{stats.total}</div><div className="stat-label">TOTAL</div></div>
+              <div className="stat-box stat-pending"><div className="stat-num">{stats.pending}</div><div className="stat-label">PENDING</div></div>
+              <div className="stat-box stat-verified"><div className="stat-num">{stats.verified}</div><div className="stat-label">VERIFIED</div></div>
+              <div className="stat-box stat-rejected"><div className="stat-num">{stats.rejected}</div><div className="stat-label">REJECTED</div></div>
+            </div>
 
-        <div className="card">
-          <div className="card-title">⬡ LIVE REGISTRATION FEED ({lastRefresh})</div>
-          <div className="filter-bar">
-            <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
-            <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
-            <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event Name..." /></div>
-            <div className="filter-group"><label>Reg From</label><input type="date" name="reg_from" value={filters.reg_from} onChange={handleFilterChange} /></div>
-            <div className="filter-group"><label>Reg To</label><input type="date" name="reg_to" value={filters.reg_to} onChange={handleFilterChange} /></div>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-              <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
-              <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
+            <div className="card">
+              <div className="card-title">⬡ LIVE REGISTRATION FEED ({lastRefresh})</div>
+              <div className="filter-bar">
+                <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
+                <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
+                <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event Name..." /></div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                  <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
+                  <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                <table className="data-table">
+                  <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>PARTS.</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+                  <tbody>
+                    {registrations.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
+                      registrations.map(reg => (
+                        <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
+                          <td>#{reg.id}</td>
+                          <td className="text-cyan" style={{ fontWeight: 'bold' }}>{reg.teamName || '—'}</td>
+                          <td>{reg.name}</td>
+                          <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.institution || '—'}</td>
+                          <td style={{ fontSize: '0.75rem' }}>{reg.eventName}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{reg.participantCount}</td>
+                          <td className="utr-value">{reg.transactionId || '—'}</td>
+                          <td>{reg.needsAccommodation ? <span style={{ color: 'var(--neon-yellow)' }}>YES</span> : 'NO'}</td>
+                          <td><span className={`badge badge-${reg.status}`}>{reg.status.toUpperCase()}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
+                              <button className="btn btn-cyan btn-sm" title="View Details" onClick={() => openVerifyModal(reg)}>👁</button>
+                              {reg.status !== 'verified' && <button className="btn btn-green btn-sm" title="Approve" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
+                              {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" title="Reject" onClick={() => setRejectModalId(reg.id)}>✘</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="card">
+            <div className="card-title">⬡ FTP SERVER EXPLORER</div>
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ flex: 1, background: 'var(--bg-secondary)', padding: '0.5rem', border: '1px solid var(--border-dim)', fontSize: '0.8rem' }}>
+                PATH: <span className="text-cyan">{explorerPath}</span>
+              </div>
+              <button className="btn btn-sm btn-cyan" onClick={() => {
+                const parts = explorerPath.split('/').filter(Boolean);
+                parts.pop();
+                fetchExplorer('/' + parts.join('/'));
+              }}>UP ↑</button>
+              <button className="btn btn-sm btn-cyan" onClick={() => fetchExplorer(explorerPath)}>⟳ REFRESH</button>
+            </div>
+            
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead><tr><th>NAME</th><th>TYPE</th><th>SIZE</th><th>MODIFIED</th></tr></thead>
+                <tbody>
+                  {explorerLoading ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>LISTING DIRECTORY...</td></tr> :
+                   explorerFiles.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>EMPTY DIRECTORY</td></tr> :
+                   explorerFiles.map(file => (
+                    <tr key={file.name} className="reg-row" onClick={() => {
+                      if (file.type === 'dir') {
+                        fetchExplorer(`${explorerPath}/${file.name}`.replace(/\/+/g, '/'));
+                      }
+                    }}>
+                      <td className={file.type === 'dir' ? 'text-cyan' : ''}>{file.type === 'dir' ? '📁 ' : '📄 '}{file.name}</td>
+                      <td style={{ fontSize: '0.7rem' }}>{file.type.toUpperCase()}</td>
+                      <td style={{ fontSize: '0.7rem' }}>{file.type === 'file' ? (file.size / 1024).toFixed(1) + ' KB' : '—'}</td>
+                      <td style={{ fontSize: '0.7rem' }}>{new Date(file.modifiedAt).toLocaleString()}</td>
+                    </tr>
+                   ))
+                  }
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
-            <table className="data-table">
-              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>PARTS.</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-              <tbody>
-                {registrations.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
-                  registrations.map(reg => (
-                    <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
-                      <td>#{reg.id}</td>
-                      <td className="text-cyan" style={{ fontWeight: 'bold' }}>{reg.teamName || '—'}</td>
-                      <td>{reg.name}</td>
-                      <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.institution || '—'}</td>
-                      <td style={{ fontSize: '0.75rem' }}>{reg.eventName}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{reg.participantCount}</td>
-                      <td className="utr-value">{reg.transactionId || '—'}</td>
-                      <td>{reg.needsAccommodation ? <span style={{ color: 'var(--neon-yellow)' }}>YES</span> : 'NO'}</td>
-                      <td><span className={`badge badge-${reg.status}`}>{reg.status.toUpperCase()}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-cyan btn-sm" title="View Details" onClick={() => openVerifyModal(reg)}>👁</button>
-                          {reg.status !== 'verified' && <button className="btn btn-green btn-sm" title="Approve" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
-                          {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" title="Reject" onClick={() => setRejectModalId(reg.id)}>✘</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </main>
 
       {verifyModalReg && (
@@ -285,6 +352,9 @@ export default function AdminDashboard() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title">⬡ REGISTRATION DETAILS — #{verifyModalReg.id}</span>
+              <button className="btn btn-yellow btn-sm" onClick={() => setShowRawData(!showRawData)}>
+                {showRawData ? 'VIEW FORMATTED' : 'VIEW RAW DATA'}
+              </button>
               <button className="modal-close" onClick={() => setVerifyModalReg(null)}>×</button>
             </div>
             <div className="modal-grid">
@@ -299,59 +369,65 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div>
-                <div className="info-list">
-                    <div className="info-row"><span className="info-key">TEAM NAME</span><span className="info-val text-cyan" style={{ fontWeight: 'bold' }}>{verifyModalReg.teamName || '—'}</span></div>
-                    <div className="info-row"><span className="info-key">EVENT</span><span className="info-val">{verifyModalReg.eventName}</span></div>
-                    <div className="info-row"><span className="info-key">UTR / TRANS ID</span><span className="info-val utr-value">{verifyModalReg.transactionId || '—'}</span></div>
-                    <div className="info-row">
-                      <span className="info-key">ACCOMMODATION</span>
-                      <span className="info-val" style={{ color: verifyModalReg.needsAccommodation ? 'var(--neon-yellow)' : 'inherit', fontWeight: verifyModalReg.needsAccommodation ? 'bold' : 'normal' }}>
-                        {verifyModalReg.needsAccommodation ? '⚠️ YES - NEEDED' : 'NOT REQUIRED'}
-                      </span>
-                    </div>
-                </div>
-
-                <div className="card-title" style={{ marginTop: '1.5rem', fontSize: '0.75rem' }}>⬡ PARTICIPANTS</div>
-                <div className="info-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    <div className="info-row">
-                        <span className="info-key">LEAD</span>
-                        <span className="info-val">{verifyModalReg.participant1 || verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
-                    </div>
-                    {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && (
-                        <div className="info-row">
-                            <span className="info-key">MEMBER 2</span>
-                            <span className="info-val">{verifyModalReg.participant2} <br/> <small className="text-secondary">{verifyModalReg.email2} | {verifyModalReg.phone2}</small></span>
-                        </div>
-                    )}
-                    {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && (
-                        <div className="info-row">
-                            <span className="info-key">MEMBER 3</span>
-                            <span className="info-val">{verifyModalReg.participant3} <br/> <small className="text-secondary">{verifyModalReg.email3} | {verifyModalReg.phone3}</small></span>
-                        </div>
-                    )}
-                    {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && (
-                        <div className="info-row">
-                            <span className="info-key">MEMBER 4</span>
-                            <span className="info-val">{verifyModalReg.participant4} <br/> <small className="text-secondary">{verifyModalReg.email4} | {verifyModalReg.phone4}</small></span>
-                        </div>
-                    )}
-                </div>
-
-                <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
-                  <button className="btn btn-green" style={{ flex: 1 }} onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>
-                  <button className="btn btn-red" style={{ flex: 1 }} onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
-                </div>
-                {showRejectNotesInput && (
-                  <div style={{ marginTop: '1rem', border: '1px solid var(--neon-red)', padding: '0.75rem' }}>
-                    <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason for rejection (sent to user)..." rows={3} style={{ border: 'none', background: 'transparent', width: '100%', color: 'white' }} />
-                    <button className="btn btn-red btn-sm" style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }} onClick={() => verifyAction(verifyModalReg.id, 'reject', rejectNotes)}>CONFIRM REJECTION</button>
+                {showRawData ? (
+                  <div style={{ background: '#000', padding: '1rem', borderRadius: '4px', height: '100%', overflowY: 'auto' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--neon-yellow)', marginBottom: '0.5rem' }}>// RAW CSV RECORD PARSED AS JSON</div>
+                    <pre style={{ fontSize: '0.75rem', color: 'var(--neon-green)', whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify(verifyModalReg._raw, null, 2)}
+                    </pre>
                   </div>
-                )}
-                {verifyModalReg.adminNotes && !showRejectNotesInput && (
-                  <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,0,0,0.1)', border: '1px solid var(--border-dim)' }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-red)', marginBottom: '0.25rem' }}>PREVIOUS NOTES:</div>
-                    <div style={{ fontSize: '0.8rem' }}>{verifyModalReg.adminNotes}</div>
-                  </div>
+                ) : (
+                  <>
+                    <div className="info-list">
+                        <div className="info-row"><span className="info-key">TEAM NAME</span><span className="info-val text-cyan" style={{ fontWeight: 'bold' }}>{verifyModalReg.teamName || '—'}</span></div>
+                        <div className="info-row"><span className="info-key">EVENT</span><span className="info-val">{verifyModalReg.eventName}</span></div>
+                        <div className="info-row"><span className="info-key">COLLEGE</span><span className="info-val">{verifyModalReg.institution}</span></div>
+                        <div className="info-row"><span className="info-key">UTR / TRANS ID</span><span className="info-val utr-value">{verifyModalReg.transactionId || '—'}</span></div>
+                        <div className="info-row">
+                          <span className="info-key">ACCOMMODATION</span>
+                          <span className="info-val" style={{ color: verifyModalReg.needsAccommodation ? 'var(--neon-yellow)' : 'inherit', fontWeight: verifyModalReg.needsAccommodation ? 'bold' : 'normal' }}>
+                            {verifyModalReg.needsAccommodation ? '⚠️ YES - NEEDED' : 'NOT REQUIRED'}
+                          </span>
+                        </div>
+                    </div>
+
+                    <div className="card-title" style={{ marginTop: '1.5rem', fontSize: '0.75rem' }}>⬡ PARTICIPANTS ({verifyModalReg.participantCount})</div>
+                    <div className="info-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                        <div className="info-row">
+                            <span className="info-key">LEAD</span>
+                            <span className="info-val">{verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
+                        </div>
+                        {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && (
+                            <div className="info-row">
+                                <span className="info-key">MEMBER 2</span>
+                                <span className="info-val">{verifyModalReg.participant2}</span>
+                            </div>
+                        )}
+                        {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && (
+                            <div className="info-row">
+                                <span className="info-key">MEMBER 3</span>
+                                <span className="info-val">{verifyModalReg.participant3}</span>
+                            </div>
+                        )}
+                        {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && (
+                            <div className="info-row">
+                                <span className="info-key">MEMBER 4</span>
+                                <span className="info-val">{verifyModalReg.participant4}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+                      <button className="btn btn-green" style={{ flex: 1 }} onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>
+                      <button className="btn btn-red" style={{ flex: 1 }} onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
+                    </div>
+                    {showRejectNotesInput && (
+                      <div style={{ marginTop: '1rem', border: '1px solid var(--neon-red)', padding: '0.75rem' }}>
+                        <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason for rejection (sent to user)..." rows={3} style={{ border: 'none', background: 'transparent', width: '100%', color: 'white' }} />
+                        <button className="btn btn-red btn-sm" style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }} onClick={() => verifyAction(verifyModalReg.id, 'reject', rejectNotes)}>CONFIRM REJECTION</button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

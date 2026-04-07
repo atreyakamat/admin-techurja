@@ -83,32 +83,42 @@ export async function GET(request: NextRequest) {
         });
         
         if (records.length > 0) {
-           const reg: any = records[0];
+           const record: any = records[0];
+           const reg: any = {};
            
-           reg.id = reg.id || folderName;
-           reg.institution = reg.institution || reg['Institution Name'] || reg['college'] || reg['College'] || '—';
+           // Store original record for debug/raw view
+           reg._raw = { ...record };
            
-           // Normalize participant fields and calculate count
-           let count = 1; // Lead is always there
-           reg.participant1 = reg.participant1 || reg['name'] || reg['Name'] || reg['Lead Name'] || '';
+           // Mapping with aggressive fallbacks
+           reg.id = record.id || record['ID'] || folderName;
+           reg.name = record.name || record['Name'] || record['Lead Name'] || record['Lead'] || record['participant1'] || '—';
+           reg.email = record.email || record['Email'] || record['Lead Email'] || '—';
+           reg.phone = record.phone || record['Phone'] || record['Lead Phone'] || record['Contact'] || '—';
+           reg.eventName = record.eventName || record['Event'] || record['Event Name'] || record['event'] || '—';
+           reg.teamName = record.teamName || record['Team Name'] || record['team'] || record['Team'] || '—';
+           reg.transactionId = record.transactionId || record['UTR'] || record['Transaction ID'] || record['UTR Number'] || record['utr'] || '—';
+           reg.institution = record.institution || record['Institution Name'] || record['college'] || record['College'] || record['Institution'] || '—';
            
-           reg.participant2 = reg.participant2 || reg['Participant 2 Name'] || reg['p2Name'] || '';
-           if (reg.participant2 && reg.participant2 !== '—') count++;
+           // Participant Logic
+           let count = 1;
+           reg.participant1 = reg.name;
            
-           reg.participant3 = reg.participant3 || reg['Participant 3 Name'] || reg['p3Name'] || '';
-           if (reg.participant3 && reg.participant3 !== '—') count++;
+           reg.participant2 = record.participant2 || record['Participant 2 Name'] || record['p2Name'] || '';
+           if (reg.participant2 && reg.participant2 !== '—' && reg.participant2 !== '') count++;
            
-           reg.participant4 = reg.participant4 || reg['Participant 4 Name'] || reg['p4Name'] || '';
-           if (reg.participant4 && reg.participant4 !== '—') count++;
+           reg.participant3 = record.participant3 || record['Participant 3 Name'] || record['p3Name'] || '';
+           if (reg.participant3 && reg.participant3 !== '—' && reg.participant3 !== '') count++;
+           
+           reg.participant4 = record.participant4 || record['Participant 4 Name'] || record['p4Name'] || '';
+           if (reg.participant4 && reg.participant4 !== '—' && reg.participant4 !== '') count++;
 
            reg.participantCount = count;
+           reg.isAccepted = parseInt(record.isAccepted || record['accepted'] || '0');
+           reg.status = record.status || record['Status'] || 'pending';
+           reg.needsAccommodation = record.needsAccommodation === 'true' || record.needsAccommodation === '1' || record.needsAccommodation === 'YES' || record['Needs Accommodation'] === 'YES';
+           reg.createdAt = record.createdAt || record['Date'] || new Date().toISOString();
 
-           reg.isAccepted = parseInt(reg.isAccepted || '0');
-           reg.status = reg.status || 'pending';
-           reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
-           reg.createdAt = reg.createdAt || new Date().toISOString();
-
-           const searchString = `${reg.name || ''} ${reg.participant1 || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''} ${reg.eventName || ''}`.toLowerCase();
+           const searchString = `${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName} ${JSON.stringify(reg._raw)}`.toLowerCase();
            let match = true;
            
            if (search && !searchString.includes(search)) match = false;
