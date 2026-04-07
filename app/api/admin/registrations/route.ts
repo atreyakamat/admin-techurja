@@ -88,25 +88,27 @@ export async function GET(request: NextRequest) {
            reg.id = reg.id || folderName;
            reg.institution = reg.institution || reg['Institution Name'] || reg['college'] || reg['College'] || '—';
            
-           // Normalize participant fields
+           // Normalize participant fields and calculate count
+           let count = 1; // Lead is always there
+           reg.participant1 = reg.participant1 || reg['name'] || reg['Name'] || reg['Lead Name'] || '';
+           
            reg.participant2 = reg.participant2 || reg['Participant 2 Name'] || reg['p2Name'] || '';
-           reg.email2 = reg.email2 || reg['Participant 2 Email'] || reg['p2Email'] || '';
-           reg.phone2 = reg.phone2 || reg['Participant 2 Phone'] || reg['p2Phone'] || '';
+           if (reg.participant2 && reg.participant2 !== '—') count++;
            
            reg.participant3 = reg.participant3 || reg['Participant 3 Name'] || reg['p3Name'] || '';
-           reg.email3 = reg.email3 || reg['Participant 3 Email'] || reg['p3Email'] || '';
-           reg.phone3 = reg.phone3 || reg['Participant 3 Phone'] || reg['p3Phone'] || '';
+           if (reg.participant3 && reg.participant3 !== '—') count++;
            
            reg.participant4 = reg.participant4 || reg['Participant 4 Name'] || reg['p4Name'] || '';
-           reg.email4 = reg.email4 || reg['Participant 4 Email'] || reg['p4Email'] || '';
-           reg.phone4 = reg.phone4 || reg['Participant 4 Phone'] || reg['p4Phone'] || '';
+           if (reg.participant4 && reg.participant4 !== '—') count++;
+
+           reg.participantCount = count;
 
            reg.isAccepted = parseInt(reg.isAccepted || '0');
            reg.status = reg.status || 'pending';
            reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
            reg.createdAt = reg.createdAt || new Date().toISOString();
 
-           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''}`.toLowerCase();
+           const searchString = `${reg.name || ''} ${reg.participant1 || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''} ${reg.eventName || ''}`.toLowerCase();
            let match = true;
            
            if (search && !searchString.includes(search)) match = false;

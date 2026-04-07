@@ -77,12 +77,13 @@ export async function GET(request: NextRequest) {
            const reg: any = records[0];
            
            reg.id = reg.id || folderName;
+           reg.institution = reg.institution || reg['Institution Name'] || reg['college'] || reg['College'] || '—';
            reg.isAccepted = parseInt(reg.isAccepted || '0');
            reg.status = reg.status || 'pending';
            reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
            reg.createdAt = reg.createdAt || new Date().toISOString();
 
-           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''}`.toLowerCase();
+           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''}`.toLowerCase();
            let match = true;
            
            if (search && !searchString.includes(search)) match = false;
