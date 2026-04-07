@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as ftp from 'basic-ftp';
 import { parse } from 'csv-parse/sync';
+import { stringify } from 'csv-stringify/sync';
 
-// Utility to get the FTP client
 async function getFtpClient() {
   const client = new ftp.Client();
   await client.access({
@@ -32,8 +32,6 @@ export async function GET(request: NextRequest) {
   const isAcceptedFilter = searchParams.get('isAccepted') || 'all';
   const regFrom = searchParams.get('reg_from') || '';
   const regTo = searchParams.get('reg_to') || '';
-  const eventFrom = searchParams.get('event_from') || '';
-  const eventTo = searchParams.get('event_to') || '';
 
   let client;
   try {
@@ -49,14 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     const targetFolders = folders.filter(f => f.isDirectory);
-    
     const registrations: any[] = [];
-    const stats = {
-      total: 0,
-      pending: 0,
-      verified: 0,
-      rejected: 0,
-    };
     
     for (const folder of targetFolders) {
       const folderName = folder.name;
@@ -86,27 +77,12 @@ export async function GET(request: NextRequest) {
            const reg: any = records[0];
            
            reg.id = reg.id || folderName;
-           reg.institution = reg.institution || reg['Institution Name'] || reg['college'] || reg['College'] || '—';
-           
-           // Normalize participant fields
-           reg.participant2 = reg.participant2 || reg['Participant 2 Name'] || reg['p2Name'] || '';
-           reg.email2 = reg.email2 || reg['Participant 2 Email'] || reg['p2Email'] || '';
-           reg.phone2 = reg.phone2 || reg['Participant 2 Phone'] || reg['p2Phone'] || '';
-           
-           reg.participant3 = reg.participant3 || reg['Participant 3 Name'] || reg['p3Name'] || '';
-           reg.email3 = reg.email3 || reg['Participant 3 Email'] || reg['p3Email'] || '';
-           reg.phone3 = reg.phone3 || reg['Participant 3 Phone'] || reg['p3Phone'] || '';
-           
-           reg.participant4 = reg.participant4 || reg['Participant 4 Name'] || reg['p4Name'] || '';
-           reg.email4 = reg.email4 || reg['Participant 4 Email'] || reg['p4Email'] || '';
-           reg.phone4 = reg.phone4 || reg['Participant 4 Phone'] || reg['p4Phone'] || '';
-
            reg.isAccepted = parseInt(reg.isAccepted || '0');
            reg.status = reg.status || 'pending';
            reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
            reg.createdAt = reg.createdAt || new Date().toISOString();
 
-           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''} ${reg.institution || ''}`.toLowerCase();
+           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''}`.toLowerCase();
            let match = true;
            
            if (search && !searchString.includes(search)) match = false;
@@ -132,11 +108,6 @@ export async function GET(request: NextRequest) {
            if (match) {
                registrations.push(reg);
            }
-
-           stats.total++;
-           if (reg.status === 'pending') stats.pending++;
-           if (reg.status === 'verified') stats.verified++;
-           if (reg.status === 'rejected') stats.rejected++;
         }
       } catch (e) {
         console.warn(`[FTP_SKIP]: Failed to fetch details.csv for ${folderName}`);
@@ -147,10 +118,46 @@ export async function GET(request: NextRequest) {
 
     registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return NextResponse.json({ registrations, stats });
+    const headers = [
+      'ID', 'Event', 'Team Name', 'Lead Name', 'Lead Email', 'Lead Phone',
+      'P2 Name', 'P2 Email', 'P2 Phone',
+      'P3 Name', 'P3 Email', 'P3 Phone',
+      'P4 Name', 'P4 Email', 'P4 Phone',
+      'Institution', 'UTR', 'Accommodation', 'Status', 'Admin Notes', 'Date'
+    ];
+
+    const rows = registrations.map(reg => [
+      reg.id,
+      reg.eventName,
+      reg.teamName || '—',
+      reg.name,
+      reg.email,
+      reg.phone,
+      reg.participant2 || '—', reg.email2 || '—', reg.phone2 || '—',
+      reg.participant3 || '—', reg.email3 || '—', reg.phone3 || '—',
+      reg.participant4 || '—', reg.email4 || '—', reg.phone4 || '—',
+      reg.institution,
+      reg.transactionId || '—',
+      reg.needsAccommodation ? 'YES' : 'NO',
+      reg.status,
+      reg.adminNotes || '—',
+      new Date(reg.createdAt).toLocaleDateString()
+    ]);
+
+    const csvContent = stringify(rows, {
+      header: true,
+      columns: headers,
+    });
+
+    return new Response(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="registrations_${new Date().toISOString().slice(0,10)}.csv"`,
+      },
+    });
   } catch (error: any) {
     if (client) client.close();
-    console.error('API Error:', error);
+    console.error('Export API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

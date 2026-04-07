@@ -31,23 +31,32 @@ export async function GET(
       secure: false,
     });
 
-    const remotePath = `/registrations/${id}/image/`;
+    // Try to find image in both root and /image/ subdirectory
+    const possiblePaths = [
+        `/registrations/${id}/`,
+        `/registrations/${id}/image/`
+    ];
     
-    // Try to list files in the /image/ directory
-    let files: ftp.FileInfo[] = [];
-    try {
-        files = await client.list(remotePath);
-    } catch (e: any) {
-        console.log(`[FTP_ERROR_550]: Directory not found for ${id}`);
-        client.close();
-        return NextResponse.json({ error: 'Directory not found' }, { status: 404 });
+    let imgFile: ftp.FileInfo | undefined;
+    let finalPath = "";
+
+    for (const path of possiblePaths) {
+        try {
+            const files = await client.list(path);
+            const found = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name) && !f.isDirectory);
+            if (found) {
+                imgFile = found;
+                finalPath = path + found.name;
+                break;
+            }
+        } catch (e) {
+            // Path doesn't exist or listing failed, try next
+            continue;
+        }
     }
-    
-    // Select the first image file
-    const imgFile = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
 
     if (!imgFile) {
-        console.log(`[FTP_ERROR_404]: No image file found in ${remotePath}`);
+        console.log(`[FTP_ERROR_404]: No image file found for ${id} in root or /image/`);
         client.close();
         return NextResponse.json({ error: 'Image not found' }, { status: 404 });
     }
@@ -62,7 +71,7 @@ export async function GET(
       }
     });
 
-    await client.downloadTo(writable, remotePath + imgFile.name);
+    await client.downloadTo(writable, finalPath);
     
     const buffer = Buffer.concat(chunks);
     console.log(`[FTP_FETCH_SUCCESS]: File piped successfully (${buffer.length} bytes)`);

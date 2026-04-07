@@ -147,48 +147,33 @@ export default function AdminDashboard() {
       .catch(() => setReceiptError(true));
   };
 
-  const exportToCSV = () => {
-    if (registrations.length === 0) return;
-    
-    const headers = [
-      'ID', 'Event', 'Team Name', 'Lead Name', 'Lead Email', 'Lead Phone',
-      'P2 Name', 'P2 Email', 'P2 Phone',
-      'P3 Name', 'P3 Email', 'P3 Phone',
-      'P4 Name', 'P4 Email', 'P4 Phone',
-      'Institution', 'UTR', 'Accommodation', 'Status', 'Date'
-    ];
-    
-    const rows = registrations.map(reg => [
-      reg.id,
-      reg.eventName,
-      reg.teamName || '—',
-      reg.name,
-      reg.email,
-      reg.phone,
-      reg.participant2 || '—', reg.email2 || '—', reg.phone2 || '—',
-      reg.participant3 || '—', reg.email3 || '—', reg.phone3 || '—',
-      reg.participant4 || '—', reg.email4 || '—', reg.phone4 || '—',
-      reg.institution,
-      reg.transactionId || '—',
-      reg.needsAccommodation ? 'YES' : 'NO',
-      reg.status,
-      new Date(reg.createdAt).toLocaleDateString()
-    ]);
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => `"${val}"`).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `registrations_${new Date().toISOString().slice(0,10)}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportToCSV = async () => {
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/export-csv?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `registrations_${new Date().toISOString().slice(0,10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('CSV exported successfully', 'success');
+    } catch (e: any) {
+      showToast('Failed to export CSV', 'error');
+    }
   };
 
   if (!token) {
@@ -252,6 +237,8 @@ export default function AdminDashboard() {
             <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
             <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
             <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event Name..." /></div>
+            <div className="filter-group"><label>Reg From</label><input type="date" name="reg_from" value={filters.reg_from} onChange={handleFilterChange} /></div>
+            <div className="filter-group"><label>Reg To</label><input type="date" name="reg_to" value={filters.reg_to} onChange={handleFilterChange} /></div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
               <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
               <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
@@ -260,23 +247,24 @@ export default function AdminDashboard() {
 
           <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
             <table className="data-table">
-              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>EVENT</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
               <tbody>
-                {registrations.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
+                {registrations.length === 0 ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
                   registrations.map(reg => (
                     <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
                       <td>#{reg.id}</td>
                       <td className="text-cyan" style={{ fontWeight: 'bold' }}>{reg.teamName || '—'}</td>
                       <td>{reg.name}</td>
+                      <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.institution || '—'}</td>
                       <td style={{ fontSize: '0.75rem' }}>{reg.eventName}</td>
                       <td className="utr-value">{reg.transactionId || '—'}</td>
                       <td>{reg.needsAccommodation ? <span style={{ color: 'var(--neon-yellow)' }}>YES</span> : 'NO'}</td>
                       <td><span className={`badge badge-${reg.status}`}>{reg.status.toUpperCase()}</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-cyan btn-sm" onClick={() => openVerifyModal(reg)}>👁</button>
-                          {reg.status !== 'verified' && <button className="btn btn-green btn-sm" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
-                          {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" onClick={() => setRejectModalId(reg.id)}>✘</button>}
+                          <button className="btn btn-cyan btn-sm" title="View Details" onClick={() => openVerifyModal(reg)}>👁</button>
+                          {reg.status !== 'verified' && <button className="btn btn-green btn-sm" title="Approve" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
+                          {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" title="Reject" onClick={() => setRejectModalId(reg.id)}>✘</button>}
                         </div>
                       </td>
                     </tr>
