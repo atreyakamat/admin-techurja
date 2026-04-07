@@ -28,6 +28,10 @@ export default function AdminDashboard() {
   const [explorerCsvColumns, setExplorerCsvColumns] = useState<string[]>([]);
   const [explorerImageUrl, setExplorerImageUrl] = useState('');
   const [explorerFileLoading, setExplorerFileLoading] = useState(false);
+  
+  // Editor State
+  const [editContent, setEditContent] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -113,6 +117,7 @@ export default function AdminDashboard() {
     setExplorerSelectedFile(null);
     setExplorerCsvData(null);
     setExplorerImageUrl('');
+    setIsEditing(false);
     try {
       const res = await axiosInstance.get(`/ftp/list?path=${encodeURIComponent(path)}`);
       setExplorerFiles(res.data.files);
@@ -130,11 +135,13 @@ export default function AdminDashboard() {
     setExplorerFileLoading(true);
     setExplorerCsvData(null);
     setExplorerImageUrl('');
+    setIsEditing(false);
     try {
-      if (fileName.toLowerCase().endsWith('.csv')) {
+      if (fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.txt')) {
         const res = await axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`);
         setExplorerCsvData(res.data);
         setExplorerCsvColumns(res.data.columns || []);
+        setEditContent(res.data.rawText);
       } else if (/\.(png|jpg|jpeg|webp|gif)$/i.test(fileName)) {
         const res = await axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' });
         const url = URL.createObjectURL(res.data);
@@ -144,6 +151,59 @@ export default function AdminDashboard() {
       showToast('Failed to load file', 'error');
     } finally {
       setExplorerFileLoading(false);
+    }
+  };
+
+  const saveEditedFile = async () => {
+    if (!explorerSelectedFile) return;
+    const fullPath = `${explorerPath}/${explorerSelectedFile}`.replace(/\/+/g, '/');
+    try {
+      setExplorerFileLoading(true);
+      await axiosInstance.post('/ftp/save', { path: fullPath, content: editContent });
+      showToast('File saved successfully');
+      setIsEditing(false);
+      // Refresh preview
+      openExplorerFile(explorerSelectedFile);
+    } catch (e) {
+      showToast('Failed to save file', 'error');
+      setExplorerFileLoading(false);
+    }
+  };
+
+  const quickCreateRegistration = async () => {
+    const regId = prompt('Enter New Registration ID (e.g. reg_9999):');
+    if (!regId) return;
+    
+    const teamName = prompt('Enter Team Name:');
+    const leadName = prompt('Enter Lead Name:');
+    
+    try {
+      setExplorerLoading(true);
+      const regPath = `/registrations/${regId}`;
+      await axiosInstance.post('/ftp/mkdir', { path: '/registrations', name: regId });
+      
+      const csvTemplate = `"name","${leadName || ''}"\n"team_name","${teamName || ''}"\n"status","pending"\n"timestamp","${new Date().toISOString()}"\n"needs_accommodation","NO"`;
+      await axiosInstance.post('/ftp/save', { path: `${regPath}/details.csv`, content: csvTemplate });
+      await axiosInstance.post('/ftp/mkdir', { path: regPath, name: 'image' });
+      
+      showToast('Registration Scaffolding Created');
+      fetchExplorer('/registrations');
+    } catch (e) {
+      showToast('Failed to create registration', 'error');
+      setExplorerLoading(false);
+    }
+  };
+
+  const triggerDailyReport = async () => {
+    if (!confirm('This will generate the PDF and attempt to send the 3:00 PM report. Continue?')) return;
+    try {
+      setLoading(true);
+      const res = await axios.get(`/api/cron/daily-report?token=${token}`);
+      showToast(res.data.message);
+    } catch (e: any) {
+      showToast(e.response?.data?.error || 'Report generation failed', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -268,7 +328,10 @@ export default function AdminDashboard() {
     <>
       <header className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <div className="logo">⚡ TECHURJA <span>ADMIN</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <img src="/TechUrja2026-Poster.png" alt="Logo" style={{ height: '40px', width: 'auto', borderRadius: '4px' }} />
+            <div className="logo">⚡ TECHURJA <span>ADMIN</span></div>
+          </div>
           <div id="system-status" style={{ display: 'flex', gap: '1.5rem', fontSize: '0.6rem', letterSpacing: '1px', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className="status-dot" style={{ background: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: systemStatus.ftp ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)' }}></span>
@@ -279,6 +342,7 @@ export default function AdminDashboard() {
         <nav style={{ display: 'flex', gap: '1rem' }}>
           <button className={`btn btn-sm ${activeTab === 'feed' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('feed')}>FEED</button>
           <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>EXPLORER</button>
+          <button className="btn btn-red btn-sm" onClick={triggerDailyReport}>⚡ RUN 3PM REPORT</button>
           <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT CSV</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
@@ -295,7 +359,10 @@ export default function AdminDashboard() {
             </div>
 
             <div className="card">
-              <div className="card-title">⬡ LIVE REGISTRATION FEED ({lastRefresh})</div>
+              <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>⬡ LIVE REGISTRATION FEED ({lastRefresh})</span>
+                <button className="btn btn-sm btn-cyan" onClick={quickCreateRegistration}>+ QUICK ADD REGISTRATION</button>
+              </div>
               <div className="filter-bar">
                 <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
                 <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
@@ -444,76 +511,93 @@ export default function AdminDashboard() {
 
               {explorerSelectedFile && !explorerFileLoading && explorerCsvData && (
                 <>
-                  <div className="card-title">📊 CSV VIEWER — {explorerSelectedFile}</div>
-
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
-                      RAW JSON — {explorerCsvColumns.length} columns
-                    </div>
-                    <div style={{
-                      background: '#000',
-                      border: '1px solid var(--border-dim)',
-                      borderRadius: '4px',
-                      padding: '0.75rem',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      fontFamily: 'monospace',
-                      fontSize: '0.72rem',
-                      lineHeight: '1.8',
-                    }}>
-                      {explorerCsvColumns.map(col => (
-                        <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.15rem' }}>
-                          <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold', flexShrink: 0 }}>"{col}"</span>
-                          <span style={{ color: 'var(--neon-green)' }}> : "{String(explorerCsvData.rows?.[0]?.[col] || '')}"</span>
+                  <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>📊 {isEditing ? 'EDITING' : 'VIEWING'} — {explorerSelectedFile}</span>
+                    <div>
+                      {!isEditing ? (
+                        <button className="btn btn-sm btn-cyan" onClick={() => setIsEditing(true)}>✎ EDIT CONTENT</button>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn btn-sm btn-green" onClick={saveEditedFile}>💾 SAVE CHANGES</button>
+                          <button className="btn btn-sm btn-red" onClick={() => setIsEditing(false)}>CANCEL</button>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
-                      TABLE VIEW
+                  {isEditing ? (
+                    <div style={{ marginTop: '1rem' }}>
+                      <textarea
+                        value={editContent}
+                        onChange={e => setEditContent(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '500px',
+                          background: '#000',
+                          color: '#0f0',
+                          fontFamily: 'monospace',
+                          padding: '1rem',
+                          border: '1px solid var(--neon-green)',
+                          fontSize: '0.8rem',
+                          lineHeight: '1.5'
+                        }}
+                      />
                     </div>
-                    <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
-                      <table className="data-table" style={{ fontSize: '0.72rem' }}>
-                        <thead>
-                          <tr>
-                            {explorerCsvColumns.map(col => (
-                              <th key={col} style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1, whiteSpace: 'nowrap' }}>{col}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {explorerCsvData.rows?.map((row: any, idx: number) => (
-                            <tr key={idx}>
-                              {explorerCsvColumns.map(col => (
-                                <td key={col} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {String(row[col] || '—')}
-                                </td>
-                              ))}
-                            </tr>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                          MAPPED DATA — {explorerCsvColumns.length} fields
+                        </div>
+                        <div style={{
+                          background: '#000',
+                          border: '1px solid var(--border-dim)',
+                          borderRadius: '4px',
+                          padding: '0.75rem',
+                          maxHeight: '300px',
+                          overflowY: 'auto',
+                          fontFamily: 'monospace',
+                          fontSize: '0.72rem',
+                          lineHeight: '1.8',
+                        }}>
+                          {explorerCsvColumns.map(col => (
+                            <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.15rem' }}>
+                              <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold', flexShrink: 0 }}>"{col}"</span>
+                              <span style={{ color: 'var(--neon-green)' }}> : "{String(explorerCsvData.rows?.[0]?.[col] || '')}"</span>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
 
-                  <div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-green)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
-                      RAW CSV TEXT
-                    </div>
-                    <pre style={{
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-dim)',
-                      padding: '0.75rem',
-                      maxHeight: '200px',
-                      overflowY: 'auto',
-                      fontSize: '0.7rem',
-                      fontFamily: 'monospace',
-                      color: 'var(--text-secondary)',
-                      whiteSpace: 'pre-wrap',
-                    }}>{explorerCsvData.rawText}</pre>
-                  </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                          TABLE VIEW
+                        </div>
+                        <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
+                          <table className="data-table" style={{ fontSize: '0.72rem' }}>
+                            <thead>
+                              <tr>
+                                {explorerCsvColumns.map(col => (
+                                  <th key={col} style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1, whiteSpace: 'nowrap' }}>{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {explorerCsvData.rows?.map((row: any, idx: number) => (
+                                <tr key={idx}>
+                                  {explorerCsvColumns.map(col => (
+                                    <td key={col} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {String(row[col] || '—')}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
@@ -535,12 +619,6 @@ export default function AdminDashboard() {
                     CLICK IMAGE TO OPEN FULL SIZE
                   </div>
                 </>
-              )}
-
-              {explorerSelectedFile && !explorerFileLoading && !explorerCsvData && !explorerImageUrl && (
-                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--neon-red)' }}>
-                  ✘ UNSUPPORTED FILE TYPE OR FAILED TO LOAD
-                </div>
               )}
             </div>
           </div>
@@ -600,19 +678,19 @@ export default function AdminDashboard() {
                         {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && verifyModalReg.participant2 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 2</span>
-                                <span className="info-val">{verifyModalReg.participant2} <br/> <small className="text-secondary">{verifyModalReg.email2 || '—'} | {verifyModalReg.phone2 || '—'}</small></span>
+                                <span className="info-val">{verifyModalReg.participant2}</span>
                             </div>
                         )}
                         {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && verifyModalReg.participant3 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 3</span>
-                                <span className="info-val">{verifyModalReg.participant3} <br/> <small className="text-secondary">{verifyModalReg.email3 || '—'} | {verifyModalReg.phone3 || '—'}</small></span>
+                                <span className="info-val">{verifyModalReg.participant3}</span>
                             </div>
                         )}
                         {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && verifyModalReg.participant4 !== '' && (
                             <div className="info-row">
                                 <span className="info-key">MEMBER 4</span>
-                                <span className="info-val">{verifyModalReg.participant4} <br/> <small className="text-secondary">{verifyModalReg.email4 || '—'} | {verifyModalReg.phone4 || '—'}</small></span>
+                                <span className="info-val">{verifyModalReg.participant4}</span>
                             </div>
                         )}
                     </div>
