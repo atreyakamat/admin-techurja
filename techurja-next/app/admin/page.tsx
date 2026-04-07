@@ -147,23 +147,70 @@ export default function AdminDashboard() {
       .catch(() => setReceiptError(true));
   };
 
+  const exportToCSV = () => {
+    if (registrations.length === 0) return;
+    
+    const headers = [
+      'ID', 'Event', 'Team Name', 'Lead Name', 'Lead Email', 'Lead Phone',
+      'P2 Name', 'P2 Email', 'P2 Phone',
+      'P3 Name', 'P3 Email', 'P3 Phone',
+      'P4 Name', 'P4 Email', 'P4 Phone',
+      'Institution', 'UTR', 'Accommodation', 'Status', 'Date'
+    ];
+    
+    const rows = registrations.map(reg => [
+      reg.id,
+      reg.eventName,
+      reg.teamName || '—',
+      reg.name,
+      reg.email,
+      reg.phone,
+      reg.participant2 || '—', reg.email2 || '—', reg.phone2 || '—',
+      reg.participant3 || '—', reg.email3 || '—', reg.phone3 || '—',
+      reg.participant4 || '—', reg.email4 || '—', reg.phone4 || '—',
+      reg.institution,
+      reg.transactionId || '—',
+      reg.needsAccommodation ? 'YES' : 'NO',
+      reg.status,
+      new Date(reg.createdAt).toLocaleDateString()
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${val}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `registrations_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!token) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div className="card" style={{ width: '400px', textAlign: 'center' }}>
+        <div className="card" style={{ width: '400px', textAlign: 'center', border: '2px solid var(--neon-cyan)', boxShadow: '0 0 30px rgba(0, 245, 255, 0.2)' }}>
           <div className="logo" style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>⚡ TECHURJA <span>ADMIN</span></div>
           <form onSubmit={handleLogin}>
             <input 
               type="password" 
-              placeholder="Enter Admin Password" 
+              placeholder="ENTER ADMIN SECRET" 
               value={password} 
               onChange={e => setPassword(e.target.value)} 
-              style={{ marginBottom: '1rem', textAlign: 'center', fontSize: '1.2rem' }}
+              style={{ marginBottom: '1.5rem', textAlign: 'center', fontSize: '1.2rem', letterSpacing: '4px' }}
             />
-            <button className="btn btn-cyan" style={{ width: '100%', justifyContent: 'center' }} type="submit">
+            <button className="btn btn-cyan" style={{ width: '100%', justifyContent: 'center', padding: '1rem' }} type="submit">
               ACCESS SYSTEM
             </button>
           </form>
+          <div style={{ marginTop: '1.5rem', fontSize: '0.6rem', color: 'var(--text-secondary)', letterSpacing: '2px' }}>
+            SECURE ACCESS ONLY • AUTHORIZED PERSONNEL
+          </div>
         </div>
       </div>
     );
@@ -185,7 +232,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-        <nav>
+        <nav style={{ display: 'flex', gap: '1rem' }}>
+          <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT CSV</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
       </header>
@@ -201,9 +249,9 @@ export default function AdminDashboard() {
         <div className="card">
           <div className="card-title">⬡ LIVE REGISTRATION FEED ({lastRefresh})</div>
           <div className="filter-bar">
-            <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR..." /></div>
+            <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
             <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
-            <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event..." /></div>
+            <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event Name..." /></div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
               <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
               <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
@@ -212,20 +260,20 @@ export default function AdminDashboard() {
 
           <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
             <table className="data-table">
-              <thead><tr><th>#</th><th>TEAM NAME</th><th>NAME</th><th>EMAIL</th><th>EVENT</th><th>UTR</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>EVENT</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
               <tbody>
                 {registrations.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
                   registrations.map(reg => (
-                    <tr key={reg.id} className="reg-row">
-                      <td>{reg.id}</td>
+                    <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
+                      <td>#{reg.id}</td>
                       <td className="text-cyan" style={{ fontWeight: 'bold' }}>{reg.teamName || '—'}</td>
                       <td>{reg.name}</td>
-                      <td style={{ fontSize: '0.75rem' }}>{reg.email}</td>
-                      <td>{reg.eventName}</td>
+                      <td style={{ fontSize: '0.75rem' }}>{reg.eventName}</td>
                       <td className="utr-value">{reg.transactionId || '—'}</td>
+                      <td>{reg.needsAccommodation ? <span style={{ color: 'var(--neon-yellow)' }}>YES</span> : 'NO'}</td>
                       <td><span className={`badge badge-${reg.status}`}>{reg.status.toUpperCase()}</span></td>
                       <td>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem' }} onClick={e => e.stopPropagation()}>
                           <button className="btn btn-cyan btn-sm" onClick={() => openVerifyModal(reg)}>👁</button>
                           {reg.status !== 'verified' && <button className="btn btn-green btn-sm" onClick={() => verifyAction(reg.id, 'approve')}>✔</button>}
                           {reg.status !== 'rejected' && <button className="btn btn-red btn-sm" onClick={() => setRejectModalId(reg.id)}>✘</button>}
@@ -244,31 +292,73 @@ export default function AdminDashboard() {
         <div className="modal-overlay" onClick={() => setVerifyModalReg(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">⬡ PAYMENT VERIFICATION — #{verifyModalReg.id}</span>
+              <span className="modal-title">⬡ REGISTRATION DETAILS — #{verifyModalReg.id}</span>
               <button className="modal-close" onClick={() => setVerifyModalReg(null)}>×</button>
             </div>
             <div className="modal-grid">
               <div>
-                <div className="receipt-box">
+                <div className="receipt-box" style={{ cursor: 'zoom-in' }} onClick={() => receiptUrl && window.open(receiptUrl, '_blank')}>
                   {!receiptUrl && !receiptError && <span className="receipt-loading">FETCHING RECEIPT...</span>}
                   {receiptUrl && <img src={receiptUrl} alt="Receipt" />}
-                  {receiptError && <div className="text-red">✘ Not found on FTP</div>}
+                  {receiptError && <div className="text-red">✘ Receipt Not Found on FTP Server</div>}
+                </div>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  CLICK IMAGE TO OPEN FULL SIZE
                 </div>
               </div>
               <div>
                 <div className="info-list">
-                    <div className="info-row"><span className="info-key">TEAM NAME</span><span className="info-val text-cyan">{verifyModalReg.teamName || '—'}</span></div>
+                    <div className="info-row"><span className="info-key">TEAM NAME</span><span className="info-val text-cyan" style={{ fontWeight: 'bold' }}>{verifyModalReg.teamName || '—'}</span></div>
                     <div className="info-row"><span className="info-key">EVENT</span><span className="info-val">{verifyModalReg.eventName}</span></div>
-                    <div className="info-row"><span className="info-key">UTR</span><span className="info-val utr-value">{verifyModalReg.transactionId || '—'}</span></div>
+                    <div className="info-row"><span className="info-key">UTR / TRANS ID</span><span className="info-val utr-value">{verifyModalReg.transactionId || '—'}</span></div>
+                    <div className="info-row">
+                      <span className="info-key">ACCOMMODATION</span>
+                      <span className="info-val" style={{ color: verifyModalReg.needsAccommodation ? 'var(--neon-yellow)' : 'inherit', fontWeight: verifyModalReg.needsAccommodation ? 'bold' : 'normal' }}>
+                        {verifyModalReg.needsAccommodation ? '⚠️ YES - NEEDED' : 'NOT REQUIRED'}
+                      </span>
+                    </div>
                 </div>
-                <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
-                  <button className="btn btn-green" onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>
-                  <button className="btn btn-red" onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
+
+                <div className="card-title" style={{ marginTop: '1.5rem', fontSize: '0.75rem' }}>⬡ PARTICIPANTS</div>
+                <div className="info-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    <div className="info-row">
+                        <span className="info-key">LEAD</span>
+                        <span className="info-val">{verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
+                    </div>
+                    {verifyModalReg.participant2 && (
+                        <div className="info-row">
+                            <span className="info-key">MEMBER 2</span>
+                            <span className="info-val">{verifyModalReg.participant2} <br/> <small className="text-secondary">{verifyModalReg.email2} | {verifyModalReg.phone2}</small></span>
+                        </div>
+                    )}
+                    {verifyModalReg.participant3 && (
+                        <div className="info-row">
+                            <span className="info-key">MEMBER 3</span>
+                            <span className="info-val">{verifyModalReg.participant3} <br/> <small className="text-secondary">{verifyModalReg.email3} | {verifyModalReg.phone3}</small></span>
+                        </div>
+                    )}
+                    {verifyModalReg.participant4 && (
+                        <div className="info-row">
+                            <span className="info-key">MEMBER 4</span>
+                            <span className="info-val">{verifyModalReg.participant4} <br/> <small className="text-secondary">{verifyModalReg.email4} | {verifyModalReg.phone4}</small></span>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+                  <button className="btn btn-green" style={{ flex: 1 }} onClick={() => verifyAction(verifyModalReg.id, 'approve')}>✔ APPROVE</button>
+                  <button className="btn btn-red" style={{ flex: 1 }} onClick={() => setShowRejectNotesInput(true)}>✘ REJECT</button>
                 </div>
                 {showRejectNotesInput && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason..." rows={3} />
-                    <button className="btn btn-red btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => verifyAction(verifyModalReg.id, 'reject', rejectNotes)}>CONFIRM</button>
+                  <div style={{ marginTop: '1rem', border: '1px solid var(--neon-red)', padding: '0.75rem' }}>
+                    <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason for rejection (sent to user)..." rows={3} style={{ border: 'none', background: 'transparent' }} />
+                    <button className="btn btn-red btn-sm" style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }} onClick={() => verifyAction(verifyModalReg.id, 'reject', rejectNotes)}>CONFIRM REJECTION</button>
+                  </div>
+                )}
+                {verifyModalReg.adminNotes && !showRejectNotesInput && (
+                  <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,0,0,0.1)', border: '1px solid var(--border-dim)' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-red)', marginBottom: '0.25rem' }}>PREVIOUS NOTES:</div>
+                    <div style={{ fontSize: '0.8rem' }}>{verifyModalReg.adminNotes}</div>
                   </div>
                 )}
               </div>
@@ -281,12 +371,12 @@ export default function AdminDashboard() {
         <div className="modal-overlay" onClick={() => setRejectModalId(null)}>
             <div className="modal" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <span className="modal-title">✘ REJECT — #{rejectModalId}</span>
+                    <span className="modal-title">✘ REJECT REGISTRATION — #{rejectModalId}</span>
                 </div>
-                <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason..." rows={4} style={{ marginTop: '1rem' }} />
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-                    <button className="btn btn-red" onClick={() => verifyAction(rejectModalId!, 'reject', rejectNotes)}>✘ CONFIRM</button>
-                    <button className="btn btn-yellow" onClick={() => { setRejectModalId(null); setRejectNotes(''); }}>CANCEL</button>
+                <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Enter reason for rejection..." rows={4} style={{ marginTop: '1rem' }} />
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+                    <button className="btn btn-red" style={{ flex: 1 }} onClick={() => verifyAction(rejectModalId!, 'reject', rejectNotes)}>✘ CONFIRM REJECT</button>
+                    <button className="btn btn-cyan" style={{ flex: 1 }} onClick={() => { setRejectModalId(null); setRejectNotes(''); }}>CANCEL</button>
                 </div>
             </div>
         </div>
@@ -295,6 +385,18 @@ export default function AdminDashboard() {
       <div className="toast-container">
         {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
       </div>
+
+      <style jsx global>{`
+        .reg-row:hover {
+          box-shadow: inset 0 0 10px rgba(0, 245, 255, 0.1);
+        }
+        .receipt-loading {
+          animation: blink 1.5s infinite;
+          font-size: 0.7rem;
+          letter-spacing: 2px;
+          color: var(--text-secondary);
+        }
+      `}</style>
     </>
   );
 }

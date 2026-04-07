@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   const adminSecret = process.env.ADMIN_SECRET;
-  const token = request.headers.get('authorization')?.split(' ')[1];
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader ? authHeader.split(' ')[1] : null;
 
   if (!token || token !== adminSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Serialize BigInt for JSON response
-    const serialized = registrations.map(reg => ({
+    const serialized = registrations.map((reg: any) => ({
       ...reg,
       id: reg.id.toString(),
       eventId: reg.eventId?.toString() || null,

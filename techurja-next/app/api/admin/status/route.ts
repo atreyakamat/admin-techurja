@@ -4,7 +4,8 @@ import * as ftp from 'basic-ftp';
 
 export async function GET(request: NextRequest) {
   const adminSecret = process.env.ADMIN_SECRET;
-  const token = request.headers.get('authorization')?.split(' ')[1];
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader ? authHeader.split(' ')[1] : new URL(request.url).searchParams.get('token');
 
   if (!token || token !== adminSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -30,9 +31,12 @@ export async function GET(request: NextRequest) {
       port: parseInt(process.env.FTP_PORT || '21'),
       secure: false,
     });
+    console.log(`[FTP_CONNECT]`);
     ftpStatus = true;
     client.close();
-  } catch (e) {
+    console.log(`[FTP_DISCONNECT]`);
+  } catch (e: any) {
+    console.log(`[FTP_ERROR_${e.code || 'STATUS_CHECK'}]: ${e.message}`);
     console.error('FTP Status Check Failed:', e);
   }
 

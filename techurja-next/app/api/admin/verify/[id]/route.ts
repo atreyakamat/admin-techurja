@@ -3,10 +3,12 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const adminSecret = process.env.ADMIN_SECRET;
-  const token = request.headers.get('authorization')?.split(' ')[1];
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader ? authHeader.split(' ')[1] : null;
 
   if (!token || token !== adminSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -18,7 +20,7 @@ export async function POST(
     const newStatus = isApprove ? 'verified' : 'rejected';
 
     const updated = await prisma.registration.update({
-      where: { id: BigInt(params.id) },
+      where: { id: BigInt(id) },
       data: {
         status: newStatus,
         isAccepted: isApprove ? 1 : 0,
@@ -27,7 +29,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      message: `Registration #${params.id} ${newStatus.toUpperCase()}.`,
+      message: `Registration #${id} ${newStatus.toUpperCase()}.`,
       status: updated.status,
     });
   } catch (error: any) {
