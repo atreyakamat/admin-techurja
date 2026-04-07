@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
                         } catch (e) {}
                    }
                    if (finalPath) {
+                       reg.proofPath = finalPath;
                        const imgChunks: Buffer[] = [];
                        const imgWritable = new (require('stream').Writable)({
                          write(chunk: any, enc: any, cb: any) { imgChunks.push(chunk); cb(); }
@@ -221,20 +222,40 @@ export async function GET(request: NextRequest) {
 
     const pdfBytes = await pdfDoc.save();
 
-    // 2.5 Save PDF to FTP for archival
+    // 2.2 Create the CSV report
+    const { stringify } = await import('csv-stringify/sync');
+    const csvRows = registrations.map((reg, index) => [
+        index + 1,
+        reg.teamName || '—',
+        reg.name || '—',
+        reg.transactionId || '—',
+        reg.date || '—',
+        reg.proofPath || 'No proof found'
+    ]);
+    const csvHeaders = ['Sr.no', 'Team name', 'Full name of payee', 'Transaction ID', 'Date of Transaction', 'Proof of traction'];
+    const csvContent = stringify(csvRows, { header: true, columns: csvHeaders });
+
+    // 2.5 Save Reports to FTP for archival
     try {
         client = await getFtpClient();
         const dateStr = new Date().toISOString().slice(0, 10);
         const reportDir = `/reports/${dateStr}`;
         await client.ensureDir(reportDir);
         
-        const reportFileName = `Report_3PM_${new Date().getTime()}.pdf`;
+        const timestamp = new Date().getTime();
+        const pdfFileName = `Report_3PM_${timestamp}.pdf`;
+        const csvFileName = `Report_3PM_${timestamp}.csv`;
+
         const pdfStream = Readable.from(Buffer.from(pdfBytes));
-        await client.uploadFrom(pdfStream, `${reportDir}/${reportFileName}`);
-        console.log(`[ARCHIVE_SUCCESS]: Report saved to FTP at ${reportDir}/${reportFileName}`);
+        await client.uploadFrom(pdfStream, `${reportDir}/${pdfFileName}`);
+        
+        const csvStream = Readable.from(Buffer.from(csvContent));
+        await client.uploadFrom(csvStream, `${reportDir}/${csvFileName}`);
+
+        console.log(`[ARCHIVE_SUCCESS]: Reports saved to FTP at ${reportDir}`);
         client.close();
     } catch (archiveErr) {
-        console.error('[ARCHIVE_ERROR]: Failed to save PDF to FTP', archiveErr);
+        console.error('[ARCHIVE_ERROR]: Failed to save reports to FTP', archiveErr);
         if (client) client.close();
     }
 
