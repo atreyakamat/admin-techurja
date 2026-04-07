@@ -342,11 +342,39 @@ export default function AdminDashboard() {
             <div className="card" style={{ width: '420px', minWidth: '420px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
               <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>⬡ FTP EXPLORER</span>
-                <button className="btn btn-sm btn-cyan" onClick={() => {
-                  const parts = explorerPath.split('/').filter(Boolean);
-                  parts.pop();
-                  fetchExplorer('/' + parts.join('/') || '/');
-                }}>UP ↑</button>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-sm btn-cyan" onClick={() => {
+                    const parts = explorerPath.split('/').filter(Boolean);
+                    parts.pop();
+                    fetchExplorer('/' + parts.join('/') || '/');
+                  }}>UP ↑</button>
+                  <button className="btn btn-sm btn-green" onClick={async () => {
+                    const name = prompt('New Directory Name:');
+                    if (!name) return;
+                    try {
+                      await axiosInstance.post('/ftp/mkdir', { path: explorerPath, name });
+                      showToast('Directory created');
+                      fetchExplorer(explorerPath);
+                    } catch (e) { showToast('Failed to create', 'error'); }
+                  }}>+DIR</button>
+                  <label className="btn btn-sm btn-yellow" style={{ cursor: 'pointer', margin: 0 }}>
+                    +FILE
+                    <input type="file" style={{ display: 'none' }} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const formData = new FormData();
+                      formData.append('path', explorerPath);
+                      formData.append('file', file);
+                      try {
+                        setExplorerLoading(true);
+                        await axiosInstance.post('/ftp/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        showToast('File uploaded');
+                        fetchExplorer(explorerPath);
+                      } catch (err) { showToast('Upload failed', 'error'); setExplorerLoading(false); }
+                      e.target.value = '';
+                    }} />
+                  </label>
+                </div>
               </div>
               <div style={{ background: 'var(--bg-secondary)', padding: '0.4rem 0.75rem', border: '1px solid var(--border-dim)', fontSize: '0.7rem', marginBottom: '0.75rem', fontFamily: 'monospace', color: 'var(--neon-cyan)' }}>
                 {explorerPath}
@@ -385,6 +413,16 @@ export default function AdminDashboard() {
                   <span>{file.type === 'dir' ? '📁' : file.name.toLowerCase().endsWith('.csv') ? '📊' : '🖼️'}</span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: file.type === 'dir' ? 'var(--neon-cyan)' : 'var(--text-primary)' }}>{file.name}</span>
                   {file.type === 'file' && <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{(file.size / 1024).toFixed(1)} KB</span>}
+                  
+                  <button className="btn btn-sm btn-red" style={{ padding: '0.1rem 0.3rem', fontSize: '0.6rem' }} onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Delete ${file.name}?`)) return;
+                    try {
+                      await axiosInstance.post('/ftp/delete', { path: `${explorerPath}/${file.name}`.replace(/\/+/g, '/'), type: file.type });
+                      showToast('Deleted successfully');
+                      fetchExplorer(explorerPath);
+                    } catch (err) { showToast('Failed to delete', 'error'); }
+                  }}>X</button>
                 </div>
               ))}
             </div>

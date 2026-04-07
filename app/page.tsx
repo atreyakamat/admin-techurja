@@ -1,65 +1,82 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import React, { useState, useEffect } from 'react';
+
+export default function SpoofLandingPage() {
+  const [glitchText, setGlitchText] = useState('BUREAU OF MISSING SOCKS');
+  const [sockCount, setSockCount] = useState(4829301);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const glitches = ['LOST COTTON', 'SINGLE HEELS', 'VOID IN DRAWER', 'WASHING MACHINE PORTAL'];
+      setGlitchText(glitches[Math.floor(Math.random() * glitches.length)]);
+      setSockCount(prev => prev + Math.floor(Math.random() * 5));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{
+      backgroundColor: '#050505',
+      color: '#00ff41',
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'monospace',
+      textAlign: 'center',
+      padding: '2rem',
+      cursor: 'help'
+    }}>
+      <div style={{ fontSize: '0.8rem', opacity: 0.5, marginBottom: '2rem' }}>
+        OFFICIAL PORTAL // ACCESS LEVEL: NON-EXISTENT
+      </div>
+
+      <div style={{ border: '1px solid #333', padding: '2rem', maxWidth: '600px', background: '#0a0a0a' }}>
+        <h1 style={{ letterSpacing: '5px', fontSize: '1.5rem', color: '#ff00ff' }}>{glitchText}</h1>
+        <div style={{ margin: '1.5rem 0', color: '#888' }}>
+          Welcome to the Intergalactic Repository. We currently have <span style={{ color: '#fff' }}>{sockCount.toLocaleString()}</span> unpaired socks in our care.
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '2rem' }}>
+          <button className="spoof-btn" onClick={() => alert('Request denied. Sock has been promoted to a mitten.')}>REPORT A LOSS</button>
+          <button className="spoof-btn" onClick={() => window.location.href = 'https://www.google.com/search?q=why+do+socks+disappear'}>APPLY FOR REUNION</button>
+          <button className="spoof-btn" onClick={() => alert('The dryer is currently sleeping. Do not wake it.')}>DRYER STATUS</button>
+          <button className="spoof-btn" onClick={() => {
+            const colors = ['#f00', '#0f0', '#00f', '#ff0'];
+            document.body.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+            setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
+          }}>CALIBRATE VOID</button>
         </div>
-      </main>
+
+        <div style={{ marginTop: '2rem', fontSize: '0.7rem', color: '#444' }}>
+          By staying on this page, you agree that your left sock belongs to the universe.
+          <br /><br />
+          System Hash: 0xDEADBEEF_S0CK
+        </div>
+      </div>
+
+      <div style={{ marginTop: '3rem', fontSize: '0.6rem', color: '#222' }}>
+        Designed by the Committee of Static Electricity.
+      </div>
+
+      <style jsx>{`
+        .spoof-btn {
+          background: transparent;
+          border: 1px solid #00ff41;
+          color: #00ff41;
+          padding: 0.75rem;
+          font-family: monospace;
+          cursor: crosshair;
+          transition: all 0.3s;
+        }
+        .spoof-btn:hover {
+          background: #00ff41;
+          color: #000;
+          box-shadow: 0 0 20px #00ff41;
+        }
+      `}</style>
     </div>
   );
 }
