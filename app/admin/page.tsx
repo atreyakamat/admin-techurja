@@ -23,6 +23,11 @@ export default function AdminDashboard() {
   const [explorerPath, setExplorerPath] = useState('/registrations');
   const [explorerFiles, setExplorerFiles] = useState<any[]>([]);
   const [explorerLoading, setExplorerLoading] = useState(false);
+  const [explorerSelectedFile, setExplorerSelectedFile] = useState<string | null>(null);
+  const [explorerCsvData, setExplorerCsvData] = useState<any>(null);
+  const [explorerCsvColumns, setExplorerCsvColumns] = useState<string[]>([]);
+  const [explorerImageUrl, setExplorerImageUrl] = useState('');
+  const [explorerFileLoading, setExplorerFileLoading] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -105,6 +110,9 @@ export default function AdminDashboard() {
   const fetchExplorer = useCallback(async (path: string) => {
     if (!token || activeTab !== 'explorer') return;
     setExplorerLoading(true);
+    setExplorerSelectedFile(null);
+    setExplorerCsvData(null);
+    setExplorerImageUrl('');
     try {
       const res = await axiosInstance.get(`/ftp/list?path=${encodeURIComponent(path)}`);
       setExplorerFiles(res.data.files);
@@ -115,6 +123,29 @@ export default function AdminDashboard() {
       setExplorerLoading(false);
     }
   }, [token, activeTab]);
+
+  const openExplorerFile = async (fileName: string) => {
+    const fullPath = `${explorerPath}/${fileName}`.replace(/\/+/g, '/');
+    setExplorerSelectedFile(fileName);
+    setExplorerFileLoading(true);
+    setExplorerCsvData(null);
+    setExplorerImageUrl('');
+    try {
+      if (fileName.toLowerCase().endsWith('.csv')) {
+        const res = await axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`);
+        setExplorerCsvData(res.data);
+        setExplorerCsvColumns(res.data.columns || []);
+      } else if (/\.(png|jpg|jpeg|webp|gif)$/i.test(fileName)) {
+        const res = await axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' });
+        const url = URL.createObjectURL(res.data);
+        setExplorerImageUrl(url);
+      }
+    } catch (e: any) {
+      showToast('Failed to load file', 'error');
+    } finally {
+      setExplorerFileLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -307,41 +338,172 @@ export default function AdminDashboard() {
             </div>
           </>
         ) : (
-          <div className="card">
-            <div className="card-title">⬡ FTP SERVER EXPLORER</div>
-            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <div style={{ flex: 1, background: 'var(--bg-secondary)', padding: '0.5rem', border: '1px solid var(--border-dim)', fontSize: '0.8rem' }}>
-                PATH: <span className="text-cyan">{explorerPath}</span>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+            <div className="card" style={{ width: '420px', minWidth: '420px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+              <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>⬡ FTP EXPLORER</span>
+                <button className="btn btn-sm btn-cyan" onClick={() => {
+                  const parts = explorerPath.split('/').filter(Boolean);
+                  parts.pop();
+                  fetchExplorer('/' + parts.join('/') || '/');
+                }}>UP ↑</button>
               </div>
-              <button className="btn btn-sm btn-cyan" onClick={() => {
-                const parts = explorerPath.split('/').filter(Boolean);
-                parts.pop();
-                fetchExplorer('/' + parts.join('/'));
-              }}>UP ↑</button>
-              <button className="btn btn-sm btn-cyan" onClick={() => fetchExplorer(explorerPath)}>⟳ REFRESH</button>
+              <div style={{ background: 'var(--bg-secondary)', padding: '0.4rem 0.75rem', border: '1px solid var(--border-dim)', fontSize: '0.7rem', marginBottom: '0.75rem', fontFamily: 'monospace', color: 'var(--neon-cyan)' }}>
+                {explorerPath}
+              </div>
+
+              {explorerLoading && <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>LISTING...</div>}
+
+              {!explorerLoading && explorerFiles.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>EMPTY DIRECTORY</div>
+              )}
+
+              {explorerFiles.map(file => (
+                <div
+                  key={file.name}
+                  onClick={() => {
+                    if (file.type === 'dir') {
+                      fetchExplorer(`${explorerPath}/${file.name}`.replace(/\/+/g, '/'));
+                    } else {
+                      openExplorerFile(file.name);
+                    }
+                  }}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    borderBottom: '1px solid var(--border-dim)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    background: explorerSelectedFile === file.name ? 'rgba(0,245,255,0.08)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = explorerSelectedFile === file.name ? 'rgba(0,245,255,0.08)' : 'transparent')}
+                >
+                  <span>{file.type === 'dir' ? '📁' : file.name.toLowerCase().endsWith('.csv') ? '📊' : '🖼️'}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: file.type === 'dir' ? 'var(--neon-cyan)' : 'var(--text-primary)' }}>{file.name}</span>
+                  {file.type === 'file' && <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{(file.size / 1024).toFixed(1)} KB</span>}
+                </div>
+              ))}
             </div>
-            
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead><tr><th>NAME</th><th>TYPE</th><th>SIZE</th><th>MODIFIED</th></tr></thead>
-                <tbody>
-                  {explorerLoading ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>LISTING DIRECTORY...</td></tr> :
-                   explorerFiles.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>EMPTY DIRECTORY</td></tr> :
-                   explorerFiles.map(file => (
-                    <tr key={file.name} className="reg-row" onClick={() => {
-                      if (file.type === 'dir') {
-                        fetchExplorer(`${explorerPath}/${file.name}`.replace(/\/+/g, '/'));
-                      }
+
+            <div className="card" style={{ flex: 1, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+              {!explorerSelectedFile && (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📂</div>
+                  <div style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>SELECT A FILE TO VIEW</div>
+                  <div style={{ fontSize: '0.7rem', marginTop: '0.5rem' }}>Click any CSV or image file in the folder tree</div>
+                </div>
+              )}
+
+              {explorerSelectedFile && explorerFileLoading && (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ animation: 'blink 1s infinite', letterSpacing: '2px' }}>LOADING FILE...</div>
+                </div>
+              )}
+
+              {explorerSelectedFile && !explorerFileLoading && explorerCsvData && (
+                <>
+                  <div className="card-title">📊 CSV VIEWER — {explorerSelectedFile}</div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                      RAW JSON — {explorerCsvColumns.length} columns
+                    </div>
+                    <div style={{
+                      background: '#000',
+                      border: '1px solid var(--border-dim)',
+                      borderRadius: '4px',
+                      padding: '0.75rem',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      fontFamily: 'monospace',
+                      fontSize: '0.72rem',
+                      lineHeight: '1.8',
                     }}>
-                      <td className={file.type === 'dir' ? 'text-cyan' : ''}>{file.type === 'dir' ? '📁 ' : '📄 '}{file.name}</td>
-                      <td style={{ fontSize: '0.7rem' }}>{file.type.toUpperCase()}</td>
-                      <td style={{ fontSize: '0.7rem' }}>{file.type === 'file' ? (file.size / 1024).toFixed(1) + ' KB' : '—'}</td>
-                      <td style={{ fontSize: '0.7rem' }}>{new Date(file.modifiedAt).toLocaleString()}</td>
-                    </tr>
-                   ))
-                  }
-                </tbody>
-              </table>
+                      {explorerCsvColumns.map(col => (
+                        <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.15rem' }}>
+                          <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold', flexShrink: 0 }}>"{col}"</span>
+                          <span style={{ color: 'var(--neon-green)' }}> : "{String(explorerCsvData.rows?.[0]?.[col] || '')}"</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                      TABLE VIEW
+                    </div>
+                    <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
+                      <table className="data-table" style={{ fontSize: '0.72rem' }}>
+                        <thead>
+                          <tr>
+                            {explorerCsvColumns.map(col => (
+                              <th key={col} style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1, whiteSpace: 'nowrap' }}>{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {explorerCsvData.rows?.map((row: any, idx: number) => (
+                            <tr key={idx}>
+                              {explorerCsvColumns.map(col => (
+                                <td key={col} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {String(row[col] || '—')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--neon-green)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                      RAW CSV TEXT
+                    </div>
+                    <pre style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-dim)',
+                      padding: '0.75rem',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      fontSize: '0.7rem',
+                      fontFamily: 'monospace',
+                      color: 'var(--text-secondary)',
+                      whiteSpace: 'pre-wrap',
+                    }}>{explorerCsvData.rawText}</pre>
+                  </div>
+                </>
+              )}
+
+              {explorerSelectedFile && !explorerFileLoading && explorerImageUrl && (
+                <>
+                  <div className="card-title">🖼️ IMAGE VIEWER — {explorerSelectedFile}</div>
+                  <div style={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-dim)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '300px',
+                    cursor: 'zoom-in',
+                  }} onClick={() => window.open(explorerImageUrl, '_blank')}>
+                    <img src={explorerImageUrl} alt={explorerSelectedFile} style={{ maxWidth: '100%', maxHeight: '600px', objectFit: 'contain' }} />
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem' }}>
+                    CLICK IMAGE TO OPEN FULL SIZE
+                  </div>
+                </>
+              )}
+
+              {explorerSelectedFile && !explorerFileLoading && !explorerCsvData && !explorerImageUrl && (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--neon-red)' }}>
+                  ✘ UNSUPPORTED FILE TYPE OR FAILED TO LOAD
+                </div>
+              )}
             </div>
           </div>
         )}

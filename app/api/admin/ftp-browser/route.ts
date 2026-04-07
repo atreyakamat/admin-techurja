@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
         const records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
         return NextResponse.json({
           csvPath: path,
-          columns: records.length > 0 ? Object.keys(records[0]) : [],
+          columns: records.length > 0 ? Object.keys(records[0] as object) : [],
           rows: records,
           rawText: csvContent
         });

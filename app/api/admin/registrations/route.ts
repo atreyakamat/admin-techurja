@@ -86,39 +86,55 @@ export async function GET(request: NextRequest) {
            const record: any = records[0];
            const reg: any = {};
            
+           // Helper for case-insensitive and whitespace-resilient lookups
+           const getVal = (keys: string[]) => {
+             const recordKeys = Object.keys(record);
+             for (const k of keys) {
+               const foundKey = recordKeys.find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+               if (foundKey !== undefined) return record[foundKey];
+             }
+             return undefined;
+           };
+
            // Store original record for debug/raw view
            reg._raw = { ...record };
            
            // Mapping with aggressive fallbacks
-           reg.id = record.id || record['ID'] || folderName;
-           reg.name = record.name || record['Name'] || record['Lead Name'] || record['Lead'] || record['participant1'] || '—';
-           reg.email = record.email || record['Email'] || record['Lead Email'] || '—';
-           reg.phone = record.phone || record['Phone'] || record['Lead Phone'] || record['Contact'] || '—';
-           reg.eventName = record.eventName || record['Event'] || record['Event Name'] || record['event'] || '—';
-           reg.teamName = record.teamName || record['Team Name'] || record['team'] || record['Team'] || '—';
-           reg.transactionId = record.transactionId || record['UTR'] || record['Transaction ID'] || record['UTR Number'] || record['utr'] || '—';
-           reg.institution = record.institution || record['Institution Name'] || record['college'] || record['College'] || record['Institution'] || '—';
+           reg.id = getVal(['id', 'ID', 'registrationId', 'Registration ID']) || folderName;
+           reg.name = getVal(['name', 'Name', 'Lead Name', 'Lead', 'participant1', 'Full Name', 'Participant 1 Name']) || '—';
+           reg.email = getVal(['email', 'Email', 'Lead Email', 'participant1Email']) || '—';
+           reg.phone = getVal(['phone', 'Phone', 'Lead Phone', 'Contact', 'Mobile', 'participant1Phone']) || '—';
+           reg.eventName = getVal(['eventName', 'Event', 'Event Name', 'event']) || '—';
+           reg.teamName = getVal(['teamName', 'Team Name', 'team', 'Team', 'Teamname']) || '—';
+           reg.transactionId = getVal(['transactionId', 'UTR', 'Transaction ID', 'UTR Number', 'utr', 'TransactionID']) || '—';
+           reg.institution = getVal(['institution', 'Institution Name', 'college', 'College', 'Institution', 'School', 'University']) || '—';
            
            // Participant Logic
            let count = 1;
            reg.participant1 = reg.name;
            
-           reg.participant2 = record.participant2 || record['Participant 2 Name'] || record['p2Name'] || '';
+           reg.participant2 = getVal(['participant2', 'Participant 2 Name', 'p2Name', 'Member 2 Name']) || '';
            if (reg.participant2 && reg.participant2 !== '—' && reg.participant2 !== '') count++;
            
-           reg.participant3 = record.participant3 || record['Participant 3 Name'] || record['p3Name'] || '';
+           reg.participant3 = getVal(['participant3', 'Participant 3 Name', 'p3Name', 'Member 3 Name']) || '';
            if (reg.participant3 && reg.participant3 !== '—' && reg.participant3 !== '') count++;
            
-           reg.participant4 = record.participant4 || record['Participant 4 Name'] || record['p4Name'] || '';
+           reg.participant4 = getVal(['participant4', 'Participant 4 Name', 'p4Name', 'Member 4 Name']) || '';
            if (reg.participant4 && reg.participant4 !== '—' && reg.participant4 !== '') count++;
 
            reg.participantCount = count;
-           reg.isAccepted = parseInt(record.isAccepted || record['accepted'] || '0');
-           reg.status = record.status || record['Status'] || 'pending';
-           reg.needsAccommodation = record.needsAccommodation === 'true' || record.needsAccommodation === '1' || record.needsAccommodation === 'YES' || record['Needs Accommodation'] === 'YES';
-           reg.createdAt = record.createdAt || record['Date'] || new Date().toISOString();
+           
+           const acceptedRaw = getVal(['isAccepted', 'accepted', 'Accepted', 'status_accepted']);
+           reg.isAccepted = parseInt(acceptedRaw || '0');
+           
+           reg.status = getVal(['status', 'Status', 'Registration Status']) || 'pending';
+           
+           const accomRaw = String(getVal(['needsAccommodation', 'needs_accommodation', 'Needs Accommodation', 'Accommodation', 'accommodation']) || '').toUpperCase();
+           reg.needsAccommodation = ['TRUE', '1', 'YES', 'Y', 'NEEDED', 'REQUIRED'].includes(accomRaw);
+           
+           reg.createdAt = getVal(['createdAt', 'Date', 'Timestamp', 'Created At', 'date']) || new Date().toISOString();
 
-           const searchString = `${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName} ${JSON.stringify(reg._raw)}`.toLowerCase();
+           const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName} ${JSON.stringify(reg._raw)}`.toLowerCase();
            let match = true;
            
            if (search && !searchString.includes(search)) match = false;
