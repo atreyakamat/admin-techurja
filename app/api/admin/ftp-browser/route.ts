@@ -103,6 +103,72 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ csvData, csvColumns: csvData ? Object.keys(csvData) : [], csvPath: path });
     }
 
+    if (action === 'read-csv-all' && path) {
+      let items: ftp.FileInfo[] = [];
+      try {
+        items = await client.list(path);
+      } catch {
+        items = [];
+      }
+
+      const csvFiles = items.filter(f => !f.isDirectory && f.name.toLowerCase().endsWith('.csv'));
+      const allCsvData: any[] = [];
+
+      for (const csvFile of csvFiles) {
+        const fullPath = path.endsWith('/') ? path + csvFile.name : path + '/' + csvFile.name;
+        const data = await readCsvFromFtp(client, fullPath);
+        if (data) {
+          allCsvData.push({
+            fileName: csvFile.name,
+            filePath: fullPath,
+            columns: Object.keys(data),
+            data
+          });
+        }
+      }
+
+      client.close();
+      return NextResponse.json({ csvFiles: allCsvData, folderPath: path });
+    }
+
+    if (action === 'fetch-file' && path) {
+      const chunks: Buffer[] = [];
+      const { Writable } = await import('stream');
+      const writable = new Writable({
+        write(chunk, _encoding, callback) {
+          chunks.push(chunk);
+          callback();
+        }
+      });
+      await client.downloadTo(writable, path);
+      const buffer = Buffer.concat(chunks);
+      client.close();
+
+      const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(path);
+      const isCsv = path.toLowerCase().endsWith('.csv');
+
+      if (isImage) {
+        const contentType = path.endsWith('.png') ? 'image/png' : path.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        return new Response(buffer, {
+          headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=3600' }
+        });
+      }
+
+      if (isCsv) {
+        const csvContent = buffer.toString('utf-8');
+        const records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
+        return NextResponse.json({
+          csvPath: path,
+          columns: records.length > 0 ? Object.keys(records[0]) : [],
+          rows: records,
+          rawText: csvContent
+        });
+      }
+
+      client.close();
+      return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
+    }
+
     client.close();
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {

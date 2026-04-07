@@ -19,10 +19,16 @@ export default function FTPBrowserPage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [csvData, setCsvData] = useState<any>(null);
   const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [csvFilePath, setCsvFilePath] = useState<string>('');
   const [imageFiles, setImageFiles] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageBlobUrl, setImageBlobUrl] = useState('');
   const [loadingFolder, setLoadingFolder] = useState(false);
+  const [csvViewerOpen, setCsvViewerOpen] = useState(false);
+  const [csvViewerData, setCsvViewerData] = useState<any[]>([]);
+  const [csvViewerColumns, setCsvViewerColumns] = useState<string[]>([]);
+  const [csvViewerPath, setCsvViewerPath] = useState('');
+  const [csvViewerLoading, setCsvViewerLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -127,6 +133,27 @@ export default function FTPBrowserPage() {
     }
   };
 
+  const openCsvViewer = async (csvFileName: string) => {
+    setCsvViewerLoading(true);
+    setCsvViewerOpen(true);
+    setCsvViewerData([]);
+    setCsvViewerColumns([]);
+    const fullPath = currentPath.endsWith('/') ? currentPath + csvFileName : currentPath + '/' + csvFileName;
+    setCsvViewerPath(fullPath);
+    try {
+      const res = await axiosInstance.get(`/ftp-browser?action=read-csv-all&path=${encodeURIComponent(currentPath)}`);
+      const found = res.data.csvFiles.find((c: any) => c.fileName === csvFileName);
+      if (found) {
+        setCsvViewerData([found.data]);
+        setCsvViewerColumns(found.columns);
+      }
+    } catch {
+      showToast('Failed to load CSV', 'error');
+    } finally {
+      setCsvViewerLoading(false);
+    }
+  };
+
   if (!token) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -225,6 +252,11 @@ export default function FTPBrowserPage() {
               {files.map(f => (
                 <div
                   key={f.name}
+                  onClick={() => {
+                    if (f.name.toLowerCase().endsWith('.csv')) {
+                      openCsvViewer(f.name);
+                    }
+                  }}
                   style={{
                     padding: '0.5rem 0.75rem',
                     borderBottom: '1px solid var(--border-dim)',
@@ -232,10 +264,14 @@ export default function FTPBrowserPage() {
                     alignItems: 'center',
                     gap: '0.5rem',
                     fontSize: '0.8rem',
-                    color: 'var(--text-secondary)',
+                    color: f.name.toLowerCase().endsWith('.csv') ? 'var(--neon-green)' : 'var(--text-secondary)',
+                    cursor: f.name.toLowerCase().endsWith('.csv') ? 'pointer' : 'default',
+                    transition: 'background 0.15s',
                   }}
+                  onMouseEnter={e => { if (f.name.toLowerCase().endsWith('.csv')) e.currentTarget.style.background = 'var(--bg-card-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                 >
-                  <span>📄</span>
+                  <span>{f.name.toLowerCase().endsWith('.csv') ? '📊' : '📄'}</span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                   <span style={{ marginLeft: 'auto', fontSize: '0.65rem' }}>{(f.size / 1024).toFixed(1)} KB</span>
                 </div>
@@ -389,6 +425,77 @@ export default function FTPBrowserPage() {
           )}
         </div>
       </main>
+
+      {csvViewerOpen && (
+        <div className="modal-overlay" onClick={() => setCsvViewerOpen(false)}>
+          <div className="modal" style={{ maxWidth: '1100px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">📊 CSV VIEWER — {csvViewerPath}</span>
+              <button className="modal-close" onClick={() => setCsvViewerOpen(false)}>×</button>
+            </div>
+
+            {csvViewerLoading ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>LOADING CSV...</div>
+            ) : csvViewerData.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--neon-red)' }}>NO DATA FOUND IN CSV</div>
+            ) : (
+              <>
+                {/* Raw JSON view */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--neon-cyan)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    RAW JSON — {csvViewerColumns.length} columns
+                  </div>
+                  <div style={{
+                    background: '#000',
+                    border: '1px solid var(--border-dim)',
+                    borderRadius: '4px',
+                    padding: '1rem',
+                    maxHeight: '250px',
+                    overflowY: 'auto',
+                    fontFamily: 'monospace',
+                    fontSize: '0.75rem',
+                    lineHeight: '1.8',
+                  }}>
+                    {csvViewerColumns.map(col => (
+                      <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.2rem' }}>
+                        <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold' }}>"{col}"</span>
+                        <span style={{ color: 'var(--neon-green)' }}> : "{String(csvViewerData[0]?.[col] || '')}"</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Table view */}
+                <div style={{ fontSize: '0.7rem', color: 'var(--neon-yellow)', letterSpacing: '2px', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                  TABLE VIEW
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                  <table className="data-table" style={{ fontSize: '0.75rem' }}>
+                    <thead>
+                      <tr>
+                        {csvViewerColumns.map(col => (
+                          <th key={col} style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1 }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvViewerData.map((row, idx) => (
+                        <tr key={idx}>
+                          {csvViewerColumns.map(col => (
+                            <td key={col} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {String(row[col] || '—')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="toast-container">
         {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
