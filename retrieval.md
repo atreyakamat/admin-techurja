@@ -12,6 +12,7 @@ To reverse the process, we must align with the existing storage structure:
 ## 2. The Retrieval Flow (The "Reverse" Logic)
 
 ### Phase A: Discovery & Handshake
+
 Since the exact filename of the screenshot is dynamic (e.g., `screenshot_1740.jpg` or `user_upload.png`), the system cannot "guess" the path.
 1.  **Connect**: Establish a `basic-ftp` client connection using `FTP_HOST`, `FTP_USER`, and `FTP_PASSWORD`.
 2.  **Navigate**: Move to the directory: `registrations/{registrationId}/image/`.
