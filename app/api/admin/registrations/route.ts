@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import * as ftp from 'basic-ftp';
+import { parse } from 'csv-parse/sync';
+
+// Utility to get the FTP client
+async function getFtpClient() {
+  const client = new ftp.Client();
+  await client.access({
+    host: process.env.FTP_HOST,
+    user: process.env.FTP_USER,
+    password: process.env.FTP_PASS,
+    port: parseInt(process.env.FTP_PORT || '21'),
+    secure: false,
+  });
+  return client;
+}
 
 export async function GET(request: NextRequest) {
   const adminSecret = process.env.ADMIN_SECRET;
@@ -11,59 +25,105 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get('search') || '';
-  const status = searchParams.get('status') || '';
-  const isAccepted = searchParams.get('isAccepted') || 'all';
-  const event = searchParams.get('event') || '';
-  const category = searchParams.get('category') || '';
-  const regFrom = searchParams.get('reg_from');
-  const regTo = searchParams.get('reg_to');
+  const search = searchParams.get('search')?.toLowerCase() || '';
+  const statusFilter = searchParams.get('status') || '';
 
+  let client;
   try {
-    const where: any = {
-      OR: [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { transactionId: { contains: search } },
-        { teamName: { contains: search } },
-        { institution: { contains: search } },
-      ],
-    };
-
-    if (status) where.status = status;
-    if (isAccepted !== 'all') where.isAccepted = parseInt(isAccepted);
-    if (event) where.eventName = { contains: event };
-    if (category) where.event = { category: { contains: category } };
+    client = await getFtpClient();
     
-    if (regFrom || regTo) {
-      where.createdAt = {};
-      if (regFrom) where.createdAt.gte = new Date(regFrom);
-      if (regTo) where.createdAt.lte = new Date(regTo);
+    // Read the /registrations/ directory
+    const registrationsPath = '/registrations/';
+    
+    let folders: ftp.FileInfo[] = [];
+    try {
+        folders = await client.list(registrationsPath);
+    } catch(e) {
+        folders = [];
     }
 
-    const registrations = await prisma.registration.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { event: true },
-    });
-
+    // Filter to only directories
+    const targetFolders = folders.filter(f => f.isDirectory);
+    
+    // Use a separate client for each parallel task or use a pool
+    // For simplicity and since Netlify functions are single-request, 
+    // we'll fetch them in batches using the same connection if basic-ftp supports it, 
+    // but basic-ftp is best used sequentially on one connection or multiple connections.
+    // However, for speed on many small files, we'll try to do them in chunks.
+    
+    const registrations: any[] = [];
     const stats = {
-      total: await prisma.registration.count(),
-      pending: await prisma.registration.count({ where: { status: 'pending' } }),
-      verified: await prisma.registration.count({ where: { status: 'verified' } }),
-      rejected: await prisma.registration.count({ where: { status: 'rejected' } }),
+      total: 0,
+      pending: 0,
+      verified: 0,
+      rejected: 0,
     };
 
-    // Serialize BigInt for JSON response
-    const serialized = registrations.map((reg: any) => ({
-      ...reg,
-      id: reg.id.toString(),
-      eventId: reg.eventId?.toString() || null,
-      event: reg.event ? { ...reg.event, id: reg.event.id.toString() } : null,
-    }));
+    // Sequential for now to ensure stability on one connection, but we can try small parallel batches
+    // Actually, most FTP servers hate many concurrent connections.
+    // We'll stick to sequential but optimized or just very fast as CSVs are small.
+    
+    for (const folder of targetFolders) {
+      const folderName = folder.name;
+      const csvPath = `${registrationsPath}${folderName}/details.csv`;
+      
+      try {
+        const chunks: Buffer[] = [];
+        const { Writable } = await import('stream');
+        const writable = new Writable({
+          write(chunk, encoding, callback) {
+            chunks.push(chunk);
+            callback();
+          }
+        });
 
-    return NextResponse.json({ registrations: serialized, stats });
+        await client.downloadTo(writable, csvPath);
+        const buffer = Buffer.concat(chunks);
+        const csvContent = buffer.toString('utf-8');
+        
+        const records = parse(csvContent, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true
+        });
+        
+        if (records.length > 0) {
+           const reg: any = records[0];
+           
+           reg.id = reg.id || folderName;
+           reg.isAccepted = parseInt(reg.isAccepted || '0');
+           reg.status = reg.status || 'pending';
+           reg.needsAccommodation = reg.needsAccommodation === 'true' || reg.needsAccommodation === '1' || reg.needsAccommodation === 'YES';
+           reg.createdAt = reg.createdAt || new Date().toISOString();
+
+           const searchString = `${reg.name || ''} ${reg.email || ''} ${reg.teamName || ''} ${reg.transactionId || ''}`.toLowerCase();
+           let match = true;
+           
+           if (search && !searchString.includes(search)) match = false;
+           if (statusFilter && reg.status !== statusFilter) match = false;
+
+           if (match) {
+               registrations.push(reg);
+           }
+
+           stats.total++;
+           if (reg.status === 'pending') stats.pending++;
+           if (reg.status === 'verified') stats.verified++;
+           if (reg.status === 'rejected') stats.rejected++;
+        }
+      } catch (e) {
+        // Log error but continue
+        console.warn(`[FTP_SKIP]: Failed to fetch details.csv for ${folderName}`);
+      }
+    }
+
+    client.close();
+
+    registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return NextResponse.json({ registrations, stats });
   } catch (error: any) {
+    if (client) client.close();
     console.error('API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

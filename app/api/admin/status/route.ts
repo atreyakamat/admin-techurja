@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import * as ftp from 'basic-ftp';
 
 export async function GET(request: NextRequest) {
@@ -11,15 +10,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let dbStatus = false;
+  let dbStatus = false; // We use false because Prisma/MySQL is no longer used
   let ftpStatus = false;
-
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    dbStatus = true;
-  } catch (e) {
-    console.error('DB Status Check Failed:', e);
-  }
 
   const client = new ftp.Client();
   client.ftp.verbose = false;
@@ -31,10 +23,10 @@ export async function GET(request: NextRequest) {
       port: parseInt(process.env.FTP_PORT || '21'),
       secure: false,
     });
-    console.log(`[FTP_CONNECT]`);
+    console.log(`[FTP_CONNECT] - Status Check`);
     ftpStatus = true;
     client.close();
-    console.log(`[FTP_DISCONNECT]`);
+    console.log(`[FTP_DISCONNECT] - Status Check`);
   } catch (e: any) {
     console.log(`[FTP_ERROR_${e.code || 'STATUS_CHECK'}]: ${e.message}`);
     console.error('FTP Status Check Failed:', e);

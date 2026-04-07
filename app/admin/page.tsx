@@ -139,7 +139,7 @@ export default function AdminDashboard() {
     setRejectNotes('');
     
     // Fetch blob for protected stream
-    axiosInstance.get(`/fetch-receipt/${reg.id}`, { responseType: 'blob' })
+    axiosInstance.get(`/ftp/fetch?id=${reg.id}`, { responseType: 'blob' })
       .then(res => {
         const url = URL.createObjectURL(res.data);
         setReceiptUrl(url);

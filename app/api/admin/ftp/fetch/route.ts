@@ -1,23 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import * as ftp from 'basic-ftp';
-import { Readable } from 'stream';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest
 ) {
-  const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  
   const adminSecret = process.env.ADMIN_SECRET;
   const authHeader = request.headers.get('authorization');
-  const token = authHeader ? authHeader.split(' ')[1] : new URL(request.url).searchParams.get('token');
+  const token = authHeader ? authHeader.split(' ')[1] : searchParams.get('token');
 
   if (!token || token !== adminSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!id) {
+    return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
+  }
+
   const client = new ftp.Client();
-  console.log(`[FTP_FETCH_INIT]: {regId: "${id}", fileType: "image"}`);
+  console.log(`[FTP_FETCH_INIT]: Initiating retrieval for ${id}`);
   
   try {
     await client.access({
@@ -25,21 +28,28 @@ export async function GET(
       user: process.env.FTP_USER,
       password: process.env.FTP_PASS,
       port: parseInt(process.env.FTP_PORT || '21'),
-      secure: false, 
+      secure: false,
     });
-    console.log(`[FTP_CONNECT]`);
 
-    const remotePath = `/registrations/${id}/`;
-    const files = await client.list(remotePath);
+    const remotePath = `/registrations/${id}/image/`;
     
-    // Find the first image file (png, jpg, jpeg, webp)
+    // Try to list files in the /image/ directory
+    let files: ftp.FileInfo[] = [];
+    try {
+        files = await client.list(remotePath);
+    } catch (e: any) {
+        console.log(`[FTP_ERROR_550]: Directory not found for ${id}`);
+        client.close();
+        return NextResponse.json({ error: 'Directory not found' }, { status: 404 });
+    }
+    
+    // Select the first image file
     const imgFile = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
 
     if (!imgFile) {
-        console.log(`[FTP_ERROR_404]: Receipt not found for regId ${id}`);
+        console.log(`[FTP_ERROR_404]: No image file found in ${remotePath}`);
         client.close();
-        console.log(`[FTP_DISCONNECT]`);
-        return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Image not found' }, { status: 404 });
     }
 
     // Download into a buffer
@@ -55,10 +65,9 @@ export async function GET(
     await client.downloadTo(writable, remotePath + imgFile.name);
     
     const buffer = Buffer.concat(chunks);
-    console.log(`[FTP_FETCH_SUCCESS]: {regId: "${id}", sizeBytes: ${buffer.length}}`);
+    console.log(`[FTP_FETCH_SUCCESS]: File piped successfully (${buffer.length} bytes)`);
 
     client.close();
-    console.log(`[FTP_DISCONNECT]`);
 
     const contentType = imgFile.name.endsWith('.png') ? 'image/png' : 
                         imgFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
@@ -72,7 +81,6 @@ export async function GET(
   } catch (error: any) {
     console.log(`[FTP_ERROR_${error.code || 'UNKNOWN'}]: ${error.message}`);
     client.close();
-    console.log(`[FTP_DISCONNECT]`);
     console.error('FTP Fetch Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
