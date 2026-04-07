@@ -7,7 +7,8 @@ import axios from 'axios';
 const API_BASE_URL = '/api/admin';
 
 export default function AdminDashboard() {
-  const [token, setToken] = useState(typeof window !== 'undefined' ? localStorage.getItem('adminToken') || '' : '');
+  const [mounted, setMounted] = useState(false);
+  const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -16,6 +17,12 @@ export default function AdminDashboard() {
   const [lastRefresh, setLastRefresh] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{message: string, type: string} | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    const savedToken = localStorage.getItem('adminToken');
+    if (savedToken) setToken(savedToken);
+  }, []);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -208,12 +215,8 @@ export default function AdminDashboard() {
           <div className="logo">⚡ TECHURJA <span>ADMIN</span></div>
           <div id="system-status" style={{ display: 'flex', gap: '1.5rem', fontSize: '0.6rem', letterSpacing: '1px', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="status-dot" style={{ background: systemStatus.database ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: systemStatus.database ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)' }}></span>
-              <span className="text-secondary">DB:</span> <span style={{ color: systemStatus.database ? 'var(--neon-green)' : 'var(--neon-red)' }}>{systemStatus.database ? 'ONLINE' : 'OFFLINE'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className="status-dot" style={{ background: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: systemStatus.ftp ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)' }}></span>
-              <span className="text-secondary">FTP:</span> <span style={{ color: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)' }}>{systemStatus.ftp ? 'CONNECTED' : 'FAILED'}</span>
+              <span className="text-secondary">FTP SERVER:</span> <span style={{ color: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)' }}>{systemStatus.ftp ? 'ONLINE' : 'OFFLINE'}</span>
             </div>
           </div>
         </div>
@@ -247,9 +250,9 @@ export default function AdminDashboard() {
 
           <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
             <table className="data-table">
-              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+              <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>PARTS.</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
               <tbody>
-                {registrations.length === 0 ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
+                {registrations.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
                   registrations.map(reg => (
                     <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
                       <td>#{reg.id}</td>
@@ -257,6 +260,7 @@ export default function AdminDashboard() {
                       <td>{reg.name}</td>
                       <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.institution || '—'}</td>
                       <td style={{ fontSize: '0.75rem' }}>{reg.eventName}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{reg.participantCount}</td>
                       <td className="utr-value">{reg.transactionId || '—'}</td>
                       <td>{reg.needsAccommodation ? <span style={{ color: 'var(--neon-yellow)' }}>YES</span> : 'NO'}</td>
                       <td><span className={`badge badge-${reg.status}`}>{reg.status.toUpperCase()}</span></td>
@@ -311,21 +315,21 @@ export default function AdminDashboard() {
                 <div className="info-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     <div className="info-row">
                         <span className="info-key">LEAD</span>
-                        <span className="info-val">{verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
+                        <span className="info-val">{verifyModalReg.participant1 || verifyModalReg.name} <br/> <small className="text-secondary">{verifyModalReg.email} | {verifyModalReg.phone}</small></span>
                     </div>
-                    {verifyModalReg.participant2 && (
+                    {verifyModalReg.participant2 && verifyModalReg.participant2 !== '—' && (
                         <div className="info-row">
                             <span className="info-key">MEMBER 2</span>
                             <span className="info-val">{verifyModalReg.participant2} <br/> <small className="text-secondary">{verifyModalReg.email2} | {verifyModalReg.phone2}</small></span>
                         </div>
                     )}
-                    {verifyModalReg.participant3 && (
+                    {verifyModalReg.participant3 && verifyModalReg.participant3 !== '—' && (
                         <div className="info-row">
                             <span className="info-key">MEMBER 3</span>
                             <span className="info-val">{verifyModalReg.participant3} <br/> <small className="text-secondary">{verifyModalReg.email3} | {verifyModalReg.phone3}</small></span>
                         </div>
                     )}
-                    {verifyModalReg.participant4 && (
+                    {verifyModalReg.participant4 && verifyModalReg.participant4 !== '—' && (
                         <div className="info-row">
                             <span className="info-key">MEMBER 4</span>
                             <span className="info-val">{verifyModalReg.participant4} <br/> <small className="text-secondary">{verifyModalReg.email4} | {verifyModalReg.phone4}</small></span>
@@ -339,7 +343,7 @@ export default function AdminDashboard() {
                 </div>
                 {showRejectNotesInput && (
                   <div style={{ marginTop: '1rem', border: '1px solid var(--neon-red)', padding: '0.75rem' }}>
-                    <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason for rejection (sent to user)..." rows={3} style={{ border: 'none', background: 'transparent' }} />
+                    <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Reason for rejection (sent to user)..." rows={3} style={{ border: 'none', background: 'transparent', width: '100%', color: 'white' }} />
                     <button className="btn btn-red btn-sm" style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }} onClick={() => verifyAction(verifyModalReg.id, 'reject', rejectNotes)}>CONFIRM REJECTION</button>
                   </div>
                 )}
@@ -361,7 +365,7 @@ export default function AdminDashboard() {
                 <div className="modal-header">
                     <span className="modal-title">✘ REJECT REGISTRATION — #{rejectModalId}</span>
                 </div>
-                <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Enter reason for rejection..." rows={4} style={{ marginTop: '1rem' }} />
+                <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)} placeholder="Enter reason for rejection..." rows={4} style={{ marginTop: '1rem', width: '100%', color: 'white' }} />
                 <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
                     <button className="btn btn-red" style={{ flex: 1 }} onClick={() => verifyAction(rejectModalId!, 'reject', rejectNotes)}>✘ CONFIRM REJECT</button>
                     <button className="btn btn-cyan" style={{ flex: 1 }} onClick={() => { setRejectModalId(null); setRejectNotes(''); }}>CANCEL</button>
