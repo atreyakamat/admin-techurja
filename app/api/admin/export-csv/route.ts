@@ -191,8 +191,7 @@ export async function GET(request: NextRequest) {
       { header: 'Transaction ID', key: 'utr', width: 25 },
       { header: 'Team Name/Individual name', key: 'name', width: 30 },
       { header: 'Full Amount', key: 'amount', width: 20 },
-      { header: 'Event Name', key: 'event', width: 25 },
-      { header: 'Image', key: 'image', width: 60 }
+      { header: 'Event Name', key: 'event', width: 25 }
     ];
 
     // Style headers
@@ -205,7 +204,6 @@ export async function GET(request: NextRequest) {
 
     registrations.forEach((reg, index) => {
       const teamOrIndiv = reg.teamName && reg.teamName !== '—' ? reg.teamName : reg.name;
-      const imageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/admin/ftp/fetch?id=${reg.id}&token=${adminSecret}`;
       
       // Improved amount detection
       let amount = '—';
@@ -243,23 +241,14 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const row = worksheet.addRow({
+      worksheet.addRow({
         srNo: index + 1,
         date: new Date(reg.createdAt).toLocaleDateString('en-GB'),
         utr: reg.transactionId || '—',
         name: teamOrIndiv,
         amount: amount,
-        event: reg.eventName,
-        image: imageUrl
+        event: reg.eventName
       });
-
-      // Add clickable link to the image
-      row.getCell('image').value = {
-        text: 'View Receipt',
-        hyperlink: imageUrl,
-        tooltip: 'Click to open receipt image'
-      };
-      row.getCell('image').font = { color: { argb: 'FF0000FF' }, underline: true };
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
