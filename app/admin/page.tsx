@@ -23,8 +23,10 @@ export default function AdminDashboard() {
   const [reportsPath, setReportsPath] = useState('/reports');
   const [reportsFiles, setReportsFiles] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [dailyStats, setDailyStats] = useState<any[]>([]);
+  const [reportSubTab, setReportSubTab] = useState('stats'); // 'stats' or 'archived'
 
-  // Explorer State
+  // ... (explorer state)
   const [explorerPath, setExplorerPath] = useState('/registrations');
   const [explorerFiles, setExplorerFiles] = useState<any[]>([]);
   const [explorerLoading, setExplorerLoading] = useState(false);
@@ -134,21 +136,26 @@ export default function AdminDashboard() {
     }
   }, [token, activeTab]);
 
-  const fetchReports = useCallback(async (path: string) => {
+  const fetchReports = useCallback(async (path: string, mode: string = 'list') => {
     if (!token || activeTab !== 'reports') return;
     setReportsLoading(true);
     try {
-      const res = await axiosInstance.get(`/reports?path=${encodeURIComponent(path)}`);
-      setReportsFiles(res.data.files);
-      setReportsPath(res.data.path);
+      if (mode === 'daily-stats') {
+        const res = await axiosInstance.get(`/reports?mode=daily-stats`);
+        setDailyStats(res.data.dailyStats || []);
+      } else {
+        const res = await axiosInstance.get(`/reports?path=${encodeURIComponent(path)}`);
+        setReportsFiles(res.data.files);
+        setReportsPath(res.data.path);
+      }
     } catch (e: any) {
-      showToast('Failed to list reports', 'error');
+      showToast('Failed to fetch reports data', 'error');
     } finally {
       setReportsLoading(false);
     }
   }, [token, activeTab]);
 
-  const openExplorerFile = async (fileName: string) => {
+  // ... (explorer file logic)
     const fullPath = `${explorerPath}/${fileName}`.replace(/\/+/g, '/');
     setExplorerSelectedFile(fileName);
     setExplorerFileLoading(true);
@@ -213,11 +220,15 @@ export default function AdminDashboard() {
     }
   };
 
-  const triggerDailyReport = async () => {
-    if (!confirm('This will generate the PDF and attempt to send the 3:00 PM report. Continue?')) return;
+  const triggerDailyReport = async (force: boolean = false) => {
+    const msg = force 
+      ? 'This will generate a FULL report of ALL registrations. Continue?' 
+      : 'This will generate the PDF and attempt to send the 3:00 PM report. Continue?';
+    if (!confirm(msg)) return;
+    
     try {
       setLoading(true);
-      const res = await axios.get(`/api/cron/daily-report?token=${token}`);
+      const res = await axios.get(`/api/cron/daily-report?token=${token}${force ? '&force=true' : ''}`);
       showToast(res.data.message);
     } catch (e: any) {
       showToast(e.response?.data?.error || 'Report generation failed', 'error');
@@ -231,7 +242,13 @@ export default function AdminDashboard() {
       fetchSystemStatus();
       if (activeTab === 'feed') fetchRegistrations();
       if (activeTab === 'explorer') fetchExplorer(explorerPath);
-      if (activeTab === 'reports') fetchReports(reportsPath);
+      if (activeTab === 'reports') {
+        if (reportSubTab === 'stats') {
+          fetchReports('', 'daily-stats');
+        } else {
+          fetchReports(reportsPath, 'list');
+        }
+      }
       const interval = setInterval(fetchSystemStatus, 30000);
       return () => clearInterval(interval);
     }
@@ -378,7 +395,10 @@ export default function AdminDashboard() {
           <button className={`btn btn-sm ${activeTab === 'feed' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('feed')}>FEED</button>
           <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>EXPLORER</button>
           <button className={`btn btn-sm ${activeTab === 'reports' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('reports')}>REPORTS</button>
-          <button className="btn btn-red btn-sm" onClick={triggerDailyReport}>⚡ RUN 3PM REPORT</button>
+          <div style={{ display: 'flex', gap: '0.4rem', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1rem' }}>
+            <button className="btn btn-red btn-sm" onClick={() => triggerDailyReport(false)} title="Generate 3PM Daily Report (Last 24h)">⚡ 3PM REPORT</button>
+            <button className="btn btn-cyan btn-sm" onClick={() => triggerDailyReport(true)} title="Generate Full Report of ALL registrations">⚡ FULL REPORT</button>
+          </div>
           <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT CSV</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
@@ -447,80 +467,165 @@ export default function AdminDashboard() {
         ) : activeTab === 'reports' ? (
           <div className="card">
             <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>⬡ ARCHIVED 3:00 PM REPORTS</span>
+              <span>⬡ REGISTRATION REPORTS</span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn btn-sm btn-cyan" onClick={() => {
-                   const parts = reportsPath.split('/').filter(Boolean);
-                   parts.pop();
-                   fetchReports('/' + parts.join('/') || '/reports');
-                }}>UP ↑</button>
-                <button className="btn btn-sm btn-cyan" onClick={() => fetchReports(reportsPath)}>⟳ REFRESH</button>
+                <button className={`btn btn-sm ${reportSubTab === 'stats' ? 'btn-cyan' : ''}`} onClick={() => {
+                  setReportSubTab('stats');
+                  fetchReports('', 'daily-stats');
+                }}>DAILY STATISTICS</button>
+                <button className={`btn btn-sm ${reportSubTab === 'archived' ? 'btn-cyan' : ''}`} onClick={() => {
+                  setReportSubTab('archived');
+                  fetchReports(reportsPath, 'list');
+                }}>ARCHIVED REPORTS</button>
               </div>
             </div>
-            <div style={{ background: 'var(--bg-secondary)', padding: '0.4rem 0.75rem', border: '1px solid var(--border-dim)', fontSize: '0.7rem', marginBottom: '0.75rem', fontFamily: 'monospace', color: 'var(--neon-cyan)' }}>
-              PATH: {reportsPath}
-            </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>NAME</th>
-                    <th>TYPE</th>
-                    <th>SIZE</th>
-                    <th>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportsLoading ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>LOADING REPORTS...</td></tr>
-                  ) : reportsFiles.length === 0 ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>NO REPORTS FOUND</td></tr>
-                  ) : (
-                    reportsFiles.sort((a,b) => b.name.localeCompare(a.name)).map(file => (
-                      <tr key={file.name} style={{ cursor: file.type === 'dir' ? 'pointer' : 'default' }} onClick={() => {
-                        if (file.type === 'dir') fetchReports(`${reportsPath}/${file.name}`.replace(/\/+/g, '/'));
-                      }}>
-                        <td>
-                          <span style={{ marginRight: '0.5rem' }}>{file.type === 'dir' ? '📁' : '📄'}</span>
-                          <span style={{ color: file.type === 'dir' ? 'var(--neon-cyan)' : 'inherit' }}>{file.name}</span>
-                        </td>
-                        <td>{file.type === 'dir' ? 'FOLDER' : file.name.split('.').pop()?.toUpperCase()}</td>
-                        <td>{file.type === 'file' ? (file.size / 1024).toFixed(1) + ' KB' : '—'}</td>
-                        <td>
-                          {file.type === 'file' && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                               <button className="btn btn-sm btn-cyan" onClick={(e) => {
-                                 e.stopPropagation();
-                                 const fullPath = `${reportsPath}/${file.name}`.replace(/\/+/g, '/');
-                                 axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' })
-                                   .then(res => {
-                                      const url = URL.createObjectURL(res.data);
-                                      window.open(url, '_blank');
-                                   });
-                               }}>VIEW</button>
-                               <button className="btn btn-sm btn-yellow" onClick={(e) => {
-                                 e.stopPropagation();
-                                 const fullPath = `${reportsPath}/${file.name}`.replace(/\/+/g, '/');
-                                 axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' })
-                                   .then(res => {
-                                      const url = URL.createObjectURL(res.data);
-                                      const a = document.createElement('a');
-                                      a.href = url;
-                                      a.download = file.name;
-                                      a.click();
-                                   });
-                               }}>DOWNLOAD</button>
-                            </div>
-                          )}
-                          {file.type === 'dir' && <span className="text-secondary">OPEN FOLDER</span>}
-                        </td>
+            {reportSubTab === 'stats' ? (
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)', padding: '1rem', border: '1px solid var(--border-dim)' }}>
+                   <div className="filter-group" style={{ margin: 0 }}>
+                     <label>GENERATE REPORT FOR DATE:</label>
+                     <input type="date" id="custom-report-date" defaultValue={new Date().toISOString().split('T')[0]} />
+                   </div>
+                   <button className="btn btn-yellow" style={{ marginTop: '1.2rem' }} onClick={async () => {
+                      const dateInput = document.getElementById('custom-report-date') as HTMLInputElement;
+                      const date = dateInput.value;
+                      if (!date) return showToast('Please select a date', 'error');
+                      
+                      try {
+                        const response = await fetch(`${API_BASE_URL}/export-csv?reg_from=${date}&reg_to=${date}`, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (!response.ok) throw new Error('Export failed');
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `registrations_${date}.csv`;
+                        a.click();
+                        showToast(`Report for ${date} downloaded`);
+                      } catch (e) { showToast('Failed to export', 'error'); }
+                   }}>GENERATE & DOWNLOAD CSV</button>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>DATE</th>
+                        <th>REGISTRATIONS RECEIVED</th>
+                        <th>ACTIONS</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {reportsLoading ? (
+                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem' }}>CALCULATING DAILY STATS...</td></tr>
+                      ) : dailyStats.length === 0 ? (
+                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem' }}>NO DATA AVAILABLE</td></tr>
+                      ) : (
+                        dailyStats.map(stat => (
+                          <tr key={stat.date}>
+                            <td style={{ fontWeight: 'bold', color: 'var(--neon-cyan)' }}>{new Date(stat.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
+                            <td style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{stat.count}</td>
+                            <td>
+                              <button className="btn btn-sm btn-yellow" onClick={async () => {
+                                try {
+                                  const response = await fetch(`${API_BASE_URL}/export-csv?reg_from=${stat.date}&reg_to=${stat.date}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  if (!response.ok) throw new Error('Export failed');
+                                  const blob = await response.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `registrations_${stat.date}.csv`;
+                                  a.click();
+                                } catch (e) { showToast('Download failed', 'error'); }
+                              }}>⤓ DOWNLOAD CSV</button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ background: 'var(--bg-secondary)', padding: '0.4rem 0.75rem', border: '1px solid var(--border-dim)', fontSize: '0.7rem', margin: '1rem 0', fontFamily: 'monospace', color: 'var(--neon-cyan)' }}>
+                  PATH: {reportsPath}
+                  <div style={{ float: 'right', display: 'flex', gap: '0.5rem' }}>
+                    <button className="btn btn-sm btn-cyan" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }} onClick={() => {
+                      const parts = reportsPath.split('/').filter(Boolean);
+                      parts.pop();
+                      fetchReports('/' + parts.join('/') || '/reports', 'list');
+                    }}>UP ↑</button>
+                    <button className="btn btn-sm btn-cyan" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }} onClick={() => fetchReports(reportsPath, 'list')}>⟳ REFRESH</button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>NAME</th>
+                        <th>TYPE</th>
+                        <th>SIZE</th>
+                        <th>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportsLoading ? (
+                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>LOADING REPORTS...</td></tr>
+                      ) : reportsFiles.length === 0 ? (
+                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>NO REPORTS FOUND</td></tr>
+                      ) : (
+                        reportsFiles.sort((a,b) => b.name.localeCompare(a.name)).map(file => (
+                          <tr key={file.name} style={{ cursor: file.type === 'dir' ? 'pointer' : 'default' }} onClick={() => {
+                            if (file.type === 'dir') fetchReports(`${reportsPath}/${file.name}`.replace(/\/+/g, '/'), 'list');
+                          }}>
+                            <td>
+                              <span style={{ marginRight: '0.5rem' }}>{file.type === 'dir' ? '📁' : '📄'}</span>
+                              <span style={{ color: file.type === 'dir' ? 'var(--neon-cyan)' : 'inherit' }}>{file.name}</span>
+                            </td>
+                            <td>{file.type === 'dir' ? 'FOLDER' : file.name.split('.').pop()?.toUpperCase()}</td>
+                            <td>{file.type === 'file' ? (file.size / 1024).toFixed(1) + ' KB' : '—'}</td>
+                            <td>
+                              {file.type === 'file' && (
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                   <button className="btn btn-sm btn-cyan" onClick={(e) => {
+                                     e.stopPropagation();
+                                     const fullPath = `${reportsPath}/${file.name}`.replace(/\/+/g, '/');
+                                     axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' })
+                                       .then(res => {
+                                          const url = URL.createObjectURL(res.data);
+                                          window.open(url, '_blank');
+                                       });
+                                   }}>VIEW</button>
+                                   <button className="btn btn-sm btn-yellow" onClick={(e) => {
+                                     e.stopPropagation();
+                                     const fullPath = `${reportsPath}/${file.name}`.replace(/\/+/g, '/');
+                                     axiosInstance.get(`/ftp-browser?action=fetch-file&path=${encodeURIComponent(fullPath)}`, { responseType: 'blob' })
+                                       .then(res => {
+                                          const url = URL.createObjectURL(res.data);
+                                          const a = document.createElement('a');
+                                          a.href = url;
+                                          a.download = file.name;
+                                          a.click();
+                                       });
+                                   }}>DOWNLOAD</button>
+                                </div>
+                              )}
+                              {file.type === 'dir' && <span className="text-secondary">OPEN FOLDER</span>}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
