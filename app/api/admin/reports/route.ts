@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
   const mode = searchParams.get('mode') || 'list';
 
   if (mode === 'daily-stats') {
-    let client;
+    let client = new ftp.Client();
     try {
-      client = await getFtpClient();
+      await client.access({
+        host: process.env.FTP_HOST,
+        user: process.env.FTP_USER,
+        password: process.env.FTP_PASS,
+        port: parseInt(process.env.FTP_PORT || '21'),
+        secure: false,
+      });
       const registrationsPath = '/registrations/';
       let folders: ftp.FileInfo[] = [];
       try {
@@ -81,8 +87,6 @@ export async function GET(request: NextRequest) {
           // Skip if file missing or parse error
         }
       }
-
-      client.close();
       
       const sortedStats = Object.entries(dailyCounts)
         .map(([date, count]) => ({ date, count }))
@@ -90,18 +94,24 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({ dailyStats: sortedStats });
     } catch (error: any) {
-      if (client) client.close();
       return NextResponse.json({ error: error.message }, { status: 500 });
+    } finally {
+      client.close();
     }
   }
 
   const path = searchParams.get('path') || '/reports';
 
-  let client;
+  let client = new ftp.Client();
   try {
-    client = await getFtpClient();
+    await client.access({
+      host: process.env.FTP_HOST,
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      port: parseInt(process.env.FTP_PORT || '21'),
+      secure: false,
+    });
     const files = await client.list(path);
-    client.close();
 
     return NextResponse.json({
       path,
@@ -113,7 +123,8 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error: any) {
-    if (client) client.close();
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.close();
   }
 }

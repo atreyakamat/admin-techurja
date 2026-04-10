@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as ftp from 'basic-ftp';
 import { parse } from 'csv-parse/sync';
-import ExcelJS from 'exceljs';
+import * as ExcelJS from 'exceljs';
 
 async function getFtpClient() {
   const client = new ftp.Client();
@@ -63,9 +63,15 @@ export async function GET(request: NextRequest) {
   const regFrom = searchParams.get('reg_from') || '';
   const regTo = searchParams.get('reg_to') || '';
 
-  let client;
+  let client = new ftp.Client();
   try {
-    client = await getFtpClient();
+    await client.access({
+      host: process.env.FTP_HOST,
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      port: parseInt(process.env.FTP_PORT || '21'),
+      secure: false,
+    });
     const registrationsPath = '/registrations/';
     
     let folders: ftp.FileInfo[] = [];
@@ -154,8 +160,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    client.close();
     registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Load event details for fallback pricing
+    const fs = await import('fs');
+    const pathLib = await import('path');
+    let eventPricing: Record<string, string> = {};
+    try {
+      const eventDetailsPath = pathLib.join(process.cwd(), 'event-details.csv');
+      if (fs.existsSync(eventDetailsPath)) {
+        const eventCsv = fs.readFileSync(eventDetailsPath, 'utf-8');
+        const eventRecords = parse(eventCsv, { columns: true, skip_empty_lines: true });
+        eventRecords.forEach((rec: any) => {
+          if (rec['Event Name'] && rec['Registration Fees']) {
+            eventPricing[rec['Event Name'].toLowerCase().trim()] = rec['Registration Fees'];
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load event pricing:', e);
+    }
 
     // Create Excel Workbook
     const workbook = new ExcelJS.Workbook();
@@ -166,7 +190,7 @@ export async function GET(request: NextRequest) {
       { header: 'Date', key: 'date', width: 15 },
       { header: 'Transaction ID', key: 'utr', width: 25 },
       { header: 'Team Name/Individual name', key: 'name', width: 30 },
-      { header: 'Full Amount', key: 'amount', width: 15 },
+      { header: 'Full Amount', key: 'amount', width: 20 },
       { header: 'Event Name', key: 'event', width: 25 },
       { header: 'Image', key: 'image', width: 60 }
     ];
@@ -182,7 +206,42 @@ export async function GET(request: NextRequest) {
     registrations.forEach((reg, index) => {
       const teamOrIndiv = reg.teamName && reg.teamName !== '—' ? reg.teamName : reg.name;
       const imageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/admin/ftp/fetch?id=${reg.id}&token=${adminSecret}`;
-      const amount = reg._raw?.amount || reg._raw?.Amount || '—';
+      
+      // Improved amount detection
+      let amount = '—';
+      const possibleAmountKeys = ['amount', 'Amount', 'fees', 'Fees', 'registration_fees', 'Registration Fees', 'paid_amount', 'Price'];
+      for (const k of possibleAmountKeys) {
+        const foundKey = Object.keys(reg._raw || {}).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+        if (foundKey && reg._raw[foundKey] && reg._raw[foundKey] !== 'N/A') {
+          amount = reg._raw[foundKey];
+          break;
+        }
+      }
+
+      // Fallback to event-details.csv if still empty
+      if (amount === '—' && reg.eventName) {
+        const eventKey = reg.eventName.toLowerCase().trim();
+        const feeConfig = eventPricing[eventKey];
+        if (feeConfig) {
+          if (feeConfig.includes(';')) {
+            // Complex fee string like "15kgs:1180; 8kgs:944; 3lbs:590"
+            // Try to find a match in the raw record for weight or category
+            const subKeySearch = JSON.stringify(reg._raw || {}).toLowerCase();
+            const tiers = feeConfig.split(';').map(t => t.trim());
+            let matchedTier = '';
+            for (const tier of tiers) {
+              const label = tier.split(':')[0].toLowerCase().trim();
+              if (label && subKeySearch.includes(label)) {
+                matchedTier = tier.split(':')[1]?.trim() || tier;
+                break;
+              }
+            }
+            amount = matchedTier || feeConfig;
+          } else {
+            amount = feeConfig;
+          }
+        }
+      }
 
       const row = worksheet.addRow({
         srNo: index + 1,
@@ -205,15 +264,16 @@ export async function GET(request: NextRequest) {
 
     const buffer = await workbook.xlsx.writeBuffer();
 
-    return new Response(buffer, {
+    return new Response(buffer as any, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="registrations_${new Date().toISOString().slice(0,10)}.xlsx"`,
       },
     });
   } catch (error: any) {
-    if (client) client.close();
     console.error('Export API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.close();
   }
 }

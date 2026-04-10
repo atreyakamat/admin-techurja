@@ -62,9 +62,15 @@ export async function GET(request: NextRequest) {
   const regFrom = searchParams.get('reg_from') || '';
   const regTo = searchParams.get('reg_to') || '';
 
-  let client;
+  let client = new ftp.Client();
   try {
-    client = await getFtpClient();
+    await client.access({
+      host: process.env.FTP_HOST,
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      port: parseInt(process.env.FTP_PORT || '21'),
+      secure: false,
+    });
     const registrationsPath = '/registrations/';
     
     let folders: ftp.FileInfo[] = [];
@@ -159,12 +165,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    client.close();
     registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({ registrations, stats });
   } catch (error: any) {
-    if (client) client.close();
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.close();
   }
 }

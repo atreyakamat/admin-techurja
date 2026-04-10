@@ -322,8 +322,8 @@ export default function FTPBrowserPage() {
                     }}>
                       {csvColumns.map(key => (
                         <div key={key} style={{ display: 'flex', borderBottom: '1px solid var(--border-dim)', paddingBottom: '0.25rem', marginBottom: '0.25rem' }}>
-                          <span style={{ color: 'var(--neon-cyan)', minWidth: '200px', fontWeight: 'bold' }}>"{key}"</span>
-                          <span style={{ color: 'var(--neon-green)' }}>: "{String(csvData[key] || '')}"</span>
+                          <span style={{ color: 'var(--neon-cyan)', minWidth: '200px', fontWeight: 'bold' }}>&quot;{key}&quot;</span>
+                          <span style={{ color: 'var(--neon-green)' }}>: &quot;{String(csvData[key] || '')}&quot;</span>
                         </div>
                       ))}
                     </div>
@@ -458,8 +458,8 @@ export default function FTPBrowserPage() {
                   }}>
                     {csvViewerColumns.map(col => (
                       <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.2rem' }}>
-                        <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold' }}>"{col}"</span>
-                        <span style={{ color: 'var(--neon-green)' }}> : "{String(csvViewerData[0]?.[col] || '')}"</span>
+                        <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold' }}>&quot;{col}&quot;</span>
+                        <span style={{ color: 'var(--neon-green)' }}> : &quot;{String(csvViewerData[0]?.[col] || '')}&quot;</span>
                       </div>
                     ))}
                   </div>

@@ -855,8 +855,8 @@ export default function AdminDashboard() {
                         }}>
                           {explorerCsvColumns.map(col => (
                             <div key={col} style={{ display: 'flex', borderBottom: '1px solid #1a1a2e', paddingBottom: '0.15rem' }}>
-                              <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold', flexShrink: 0 }}>"{col}"</span>
-                              <span style={{ color: 'var(--neon-green)' }}> : "{String(explorerCsvData.rows?.[0]?.[col] || '')}"</span>
+                              <span style={{ color: 'var(--neon-cyan)', minWidth: '180px', fontWeight: 'bold', flexShrink: 0 }}>&quot;{col}&quot;</span>
+                              <span style={{ color: 'var(--neon-green)' }}> : &quot;{String(explorerCsvData.rows?.[0]?.[col] || '')}&quot;</span>
                             </div>
                           ))}
                         </div>

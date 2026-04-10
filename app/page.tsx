@@ -9,12 +9,23 @@ export default function TraumaticLandingPage() {
   const [scrollY, setScrollY] = useState(0);
   const [malwareLogs, setMalwareLogs] = useState<string[]>([]);
   
+  const [viralIcons, setViralIcons] = useState<{left: string, top: string, delay: string}[]>([]);
+  
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSystemInfo({
         ip: '102.16.' + Math.floor(Math.random() * 255) + '.' + Math.floor(Math.random() * 255),
         os: window.navigator.platform
       });
+
+      // Generate random icons once on mount
+      const icons = [...Array(20)].map(() => ({
+        left: `${Math.random() * 100}vw`,
+        top: `${Math.random() * 100}vh`,
+        delay: `${Math.random() * 2 + 1}s`
+      }));
+      setViralIcons(icons);
+
       const handleScroll = () => setScrollY(window.scrollY);
       window.addEventListener('scroll', handleScroll);
       return () => window.removeEventListener('scroll', handleScroll);
@@ -74,11 +85,11 @@ export default function TraumaticLandingPage() {
         </div>
         
         {/* Falling viral icons */}
-        {[...Array(20)].map((_, i) => (
+        {viralIcons.map((icon, i) => (
             <div key={i} style={{ 
                 position: 'absolute', color: '#f00', fontSize: '3rem', 
-                left: `${Math.random() * 100}vw`, top: `${Math.random() * 100}vh`, 
-                animation: `fall ${Math.random() * 2 + 1}s linear infinite`, zIndex: 5, opacity: 0.5 
+                left: icon.left, top: icon.top, 
+                animation: `fall ${icon.delay} linear infinite`, zIndex: 5, opacity: 0.5 
             }}>
                 ☠️
             </div>
