@@ -24,11 +24,12 @@ export async function GET(request: NextRequest) {
     });
     console.log(`[FTP_CONNECT] - Status Check`);
     ftpStatus = true;
-    client.close();
-    console.log(`[FTP_DISCONNECT] - Status Check`);
   } catch (e: any) {
     console.log(`[FTP_ERROR_${e.code || 'STATUS_CHECK'}]: ${e.message}`);
     console.error('FTP Status Check Failed:', e);
+  } finally {
+    client.close();
+    if (ftpStatus) console.log(`[FTP_DISCONNECT] - Status Check`);
   }
 
   return NextResponse.json({
