@@ -337,15 +337,15 @@ export default function AdminDashboard() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `registrations_${new Date().toISOString().slice(0,10)}.csv`);
+      link.setAttribute('download', `registrations_${new Date().toISOString().slice(0,10)}.xlsx`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast('CSV exported successfully', 'success');
+      showToast('Excel file exported successfully', 'success');
     } catch (e: any) {
-      showToast('Failed to export CSV', 'error');
+      showToast('Failed to export Excel file', 'error');
     }
   };
 
@@ -399,7 +399,7 @@ export default function AdminDashboard() {
             <button className="btn btn-red btn-sm" onClick={() => triggerDailyReport(false)} title="Generate 3PM Daily Report (Last 24h)">⚡ 3PM REPORT</button>
             <button className="btn btn-cyan btn-sm" onClick={() => triggerDailyReport(true)} title="Generate Full Report of ALL registrations">⚡ FULL REPORT</button>
           </div>
-          <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT CSV</button>
+          <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT EXCEL</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
       </header>
@@ -501,11 +501,11 @@ export default function AdminDashboard() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `registrations_${date}.csv`;
+                        a.download = `registrations_${date}.xlsx`;
                         a.click();
-                        showToast(`Report for ${date} downloaded`);
+                        showToast(`Excel report for ${date} downloaded`);
                       } catch (e) { showToast('Failed to export', 'error'); }
-                   }}>GENERATE & DOWNLOAD CSV</button>
+                   }}>GENERATE & DOWNLOAD EXCEL</button>
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
@@ -538,10 +538,11 @@ export default function AdminDashboard() {
                                   const url = URL.createObjectURL(blob);
                                   const a = document.createElement('a');
                                   a.href = url;
-                                  a.download = `registrations_${stat.date}.csv`;
+                                  a.download = `registrations_${stat.date}.xlsx`;
                                   a.click();
+                                  showToast(`Excel report for ${stat.date} downloaded`);
                                 } catch (e) { showToast('Download failed', 'error'); }
-                              }}>⤓ DOWNLOAD CSV</button>
+                              }}>⤓ DOWNLOAD EXCEL</button>
                             </td>
                           </tr>
                         ))

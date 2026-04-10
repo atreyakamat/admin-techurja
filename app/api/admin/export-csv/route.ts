@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as ftp from 'basic-ftp';
 import { parse } from 'csv-parse/sync';
-import { stringify } from 'csv-stringify/sync';
+import ExcelJS from 'exceljs';
 
 async function getFtpClient() {
   const client = new ftp.Client();
@@ -97,7 +97,6 @@ export async function GET(request: NextRequest) {
         const csvContent = buffer.toString('utf-8');
         
         const record = parseCsvContent(csvContent);
-        
         if (Object.keys(record).length === 0) continue;
 
         const getVal = (keys: string[]) => {
@@ -111,7 +110,7 @@ export async function GET(request: NextRequest) {
           return undefined;
         };
 
-        const reg: any = {};
+        const reg: any = { _raw: { ...record } };
         reg.id = folderName;
         reg.name = getVal(['name']) || '—';
         reg.email = getVal(['email']) || '—';
@@ -121,19 +120,9 @@ export async function GET(request: NextRequest) {
         reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
         reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
         
-        for (let i = 2; i <= 4; i++) {
-          reg[`participant${i}`] = getVal([`participant${i}`, `Participant ${i} Name`]) || '—';
-          reg[`email${i}`] = getVal([`email${i}`, `Participant ${i} Email`]) || '—';
-          reg[`phone${i}`] = getVal([`phone${i}`, `Participant ${i} Phone`]) || '—';
-        }
-
         const status = getVal(['status', 'Status']) || 'pending';
         reg.status = status.toLowerCase();
         reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
-        
-        const accom = String(getVal(['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
-        reg.needsAccommodation = ['YES', 'TRUE', '1', 'NEEDED'].includes(accom);
-        
         reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
 
         const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName}`.toLowerCase();
@@ -161,48 +150,65 @@ export async function GET(request: NextRequest) {
 
         if (match) registrations.push(reg);
       } catch (e) {
-        console.warn(`[FTP_SKIP]: Failed to fetch details.csv for ${folderName}`);
+        // Skip
       }
     }
 
     client.close();
-
     registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const headers = [
-      'ID', 'Event', 'Team Name', 'Lead Name', 'Lead Email', 'Lead Phone',
-      'P2 Name', 'P2 Email', 'P2 Phone',
-      'P3 Name', 'P3 Email', 'P3 Phone',
-      'P4 Name', 'P4 Email', 'P4 Phone',
-      'Institution', 'UTR', 'Accommodation', 'Status', 'Date'
+    // Create Excel Workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Registrations');
+
+    worksheet.columns = [
+      { header: 'Sr No.', key: 'srNo', width: 10 },
+      { header: 'Date', key: 'date', width: 15 },
+      { header: 'Transaction ID', key: 'utr', width: 25 },
+      { header: 'Team Name/Individual name', key: 'name', width: 30 },
+      { header: 'Full Amount', key: 'amount', width: 15 },
+      { header: 'Event Name', key: 'event', width: 25 },
+      { header: 'Image', key: 'image', width: 60 }
     ];
 
-    const rows = registrations.map(reg => [
-      reg.id,
-      reg.eventName,
-      reg.teamName || '—',
-      reg.name,
-      reg.email,
-      reg.phone,
-      reg.participant2 || '—', reg.email2 || '—', reg.phone2 || '—',
-      reg.participant3 || '—', reg.email3 || '—', reg.phone3 || '—',
-      reg.participant4 || '—', reg.email4 || '—', reg.phone4 || '—',
-      reg.institution,
-      reg.transactionId || '—',
-      reg.needsAccommodation ? 'YES' : 'NO',
-      reg.status,
-      new Date(reg.createdAt).toLocaleDateString()
-    ]);
+    // Style headers
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
 
-    const csvContent = stringify(rows, {
-      header: true,
-      columns: headers,
+    registrations.forEach((reg, index) => {
+      const teamOrIndiv = reg.teamName && reg.teamName !== '—' ? reg.teamName : reg.name;
+      const imageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/admin/ftp/fetch?id=${reg.id}&token=${adminSecret}`;
+      const amount = reg._raw?.amount || reg._raw?.Amount || '—';
+
+      const row = worksheet.addRow({
+        srNo: index + 1,
+        date: new Date(reg.createdAt).toLocaleDateString('en-GB'),
+        utr: reg.transactionId || '—',
+        name: teamOrIndiv,
+        amount: amount,
+        event: reg.eventName,
+        image: imageUrl
+      });
+
+      // Add clickable link to the image
+      row.getCell('image').value = {
+        text: 'View Receipt',
+        hyperlink: imageUrl,
+        tooltip: 'Click to open receipt image'
+      };
+      row.getCell('image').font = { color: { argb: 'FF0000FF' }, underline: true };
     });
 
-    return new Response(csvContent, {
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    return new Response(buffer, {
       headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="registrations_${new Date().toISOString().slice(0,10)}.csv"`,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="registrations_${new Date().toISOString().slice(0,10)}.xlsx"`,
       },
     });
   } catch (error: any) {
