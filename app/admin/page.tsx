@@ -49,6 +49,7 @@ export default function AdminDashboard() {
   // Modals
   const [verifyModalReg, setVerifyModalReg] = useState<any>(null);
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rejectNotes, setRejectNotes] = useState('');
   const [showRejectNotesInput, setShowRejectNotesInput] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
@@ -155,7 +156,7 @@ export default function AdminDashboard() {
     }
   }, [token, activeTab]);
 
-  // ... (explorer file logic)
+  const openExplorerFile = async (fileName: string) => {
     const fullPath = `${explorerPath}/${fileName}`.replace(/\/+/g, '/');
     setExplorerSelectedFile(fileName);
     setExplorerFileLoading(true);
@@ -303,6 +304,53 @@ export default function AdminDashboard() {
     }
   };
 
+  const toggleSelect = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === registrations.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(registrations.map(r => r.id));
+    }
+  };
+
+  const bulkAction = async (action: 'reject' | 'delete') => {
+    if (selectedIds.length === 0) return;
+    
+    const confirmMsg = action === 'reject' 
+      ? `Are you sure you want to REJECT ${selectedIds.length} selected registrations?`
+      : `Are you sure you want to PERMANENTLY DELETE ${selectedIds.length} selected registrations and their files? This CANNOT be undone.`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    setLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        if (action === 'reject') {
+          await axiosInstance.post(`/verify/${id}`, { action: 'reject', adminNotes: 'Bulk rejection' });
+        } else {
+          await axiosInstance.post('/ftp/delete', { path: `/registrations/${id}`, type: 'dir' });
+        }
+        successCount++;
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    showToast(`Bulk ${action} complete: ${successCount} successful, ${failCount} failed.`, failCount > 0 ? 'error' : 'success');
+    setSelectedIds([]);
+    fetchRegistrations();
+    setLoading(false);
+  };
+
   const openVerifyModal = (reg: any) => {
     setVerifyModalReg(reg);
     setReceiptUrl('');
@@ -430,12 +478,33 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                {selectedIds.length > 0 && (
+                  <div style={{ background: 'rgba(255, 60, 60, 0.15)', border: '1px solid var(--neon-red)', padding: '0.75rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--neon-red)' }}>
+                      ⚠ {selectedIds.length} ITEMS SELECTED
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button className="btn btn-sm btn-yellow" onClick={() => bulkAction('reject')}>✘ BULK REJECT</button>
+                      <button className="btn btn-sm btn-red" onClick={() => bulkAction('delete')}>🗑 BULK REJECT & DELETE</button>
+                      <button className="btn btn-sm btn-cyan" onClick={() => setSelectedIds([])}>CANCEL</button>
+                    </div>
+                  </div>
+                )}
                 <table className="data-table">
-                  <thead><tr><th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>PARTS.</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>
+                        <input type="checkbox" checked={selectedIds.length === registrations.length && registrations.length > 0} onChange={toggleSelectAll} />
+                      </th>
+                      <th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>COLLEGE</th><th>EVENT</th><th>PARTS.</th><th>UTR</th><th>ACCOMM.</th><th>STATUS</th><th>ACTIONS</th></tr>
+                  </thead>
                   <tbody>
-                    {registrations.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
+                    {registrations.length === 0 ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS FOUND</td></tr> :
                       registrations.map(reg => (
                         <tr key={reg.id} className="reg-row" onClick={() => openVerifyModal(reg)}>
+                          <td onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={selectedIds.includes(reg.id)} onChange={(e) => toggleSelect(reg.id)} />
+                          </td>
                           <td>#{reg.id}</td>
                           <td className="text-cyan" style={{ fontWeight: 'bold' }}>{reg.teamName || '—'}</td>
                           <td>{reg.name}</td>

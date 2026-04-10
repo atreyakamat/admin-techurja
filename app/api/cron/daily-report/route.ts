@@ -284,12 +284,12 @@ export async function GET(request: NextRequest) {
         columns: ['ID', 'Event', 'Team', 'Lead Name', 'Email', 'Phone', 'UTR', 'College', 'Date']
     });
 
+    const ts = Date.now();
     // 4. Archive to FTP
     try {
         client = await getFtpClient();
         const reportDir = `/reports/${new Date().toISOString().slice(0, 10)}`;
         await client.ensureDir(reportDir);
-        const ts = Date.now();
         await client.uploadFrom(Readable.from(Buffer.from(pdfBytes)), `${reportDir}/Report_${ts}.pdf`);
         await client.uploadFrom(Readable.from(Buffer.from(csvContent)), `${reportDir}/Data_${ts}.csv`);
         client.close();
