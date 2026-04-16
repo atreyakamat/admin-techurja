@@ -46,6 +46,14 @@ export default function AdminDashboard() {
     reg_from: '', reg_to: '', event_from: '', event_to: ''
   });
 
+  const EVENTS = [
+    "Robowars", "Robo Nexus", "Cyber Strike", "War Room Protocol", "Techyothon",
+    "Clashpunk", "Neon Span", "L9: Santo Domingo Race", "Kabuki Roundabout",
+    "Ghostgrid", "Escape the Matrix", "Pixel Play", "Structomat", "Symmetry Art",
+    "Circuit Breach", "The Cypher Heist", "Grid Runner", "Cyber Smashers",
+    "Innovate", "Cyber Tug"
+  ];
+
   // Modals
   const [verifyModalReg, setVerifyModalReg] = useState<any>(null);
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
@@ -55,6 +63,34 @@ export default function AdminDashboard() {
   const [receiptUrl, setReceiptUrl] = useState('');
   const [receiptError, setReceiptError] = useState(false);
   const [showRawData, setShowRawData] = useState(false);
+  const [showCustomExport, setShowCustomExport] = useState(false);
+  const [exportFields, setExportFields] = useState<string[]>([
+    'id', 'teamName', 'name', 'phone', 'email', 'institution', 'eventName', 'status'
+  ]);
+
+  const AVAILABLE_FIELDS = [
+    { id: 'id', label: 'ID' },
+    { id: 'teamName', label: 'Team Name' },
+    { id: 'name', label: 'Leader Name' },
+    { id: 'phone', label: 'Leader Phone' },
+    { id: 'email', label: 'Leader Email' },
+    { id: 'institution', label: 'College/Institution' },
+    { id: 'eventName', label: 'Event Name' },
+    { id: 'participantCount', label: 'Participant Count' },
+    { id: 'participant2', label: 'Participant 2' },
+    { id: 'participant3', label: 'Participant 3' },
+    { id: 'participant4', label: 'Participant 4' },
+    { id: 'transactionId', label: 'UTR / Trans ID' },
+    { id: 'status', label: 'Status' },
+    { id: 'needsAccommodation', label: 'Accommodation' },
+    { id: 'createdAt', label: 'Registration Date' },
+  ];
+
+  const toggleExportField = (fieldId: string) => {
+    setExportFields(prev => 
+      prev.includes(fieldId) ? prev.filter(f => f !== fieldId) : [...prev, fieldId]
+    );
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -397,6 +433,70 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportToPDF = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/reports?mode=pdf&${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `registrations_${filters.event || 'all'}_${new Date().toISOString().slice(0,10)}.pdf`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('PDF file exported successfully', 'success');
+    } catch (e: any) {
+      showToast('Failed to export PDF file', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCustomExport = async () => {
+    if (exportFields.length === 0) return showToast('Select at least one field', 'error');
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+      params.append('fields', exportFields.join(','));
+      
+      const response = await fetch(`${API_BASE_URL}/reports?mode=custom-pdf&${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `custom_report_${filters.event || 'all'}.pdf`);
+      link.click();
+      URL.revokeObjectURL(url);
+      setShowCustomExport(false);
+      showToast('Custom PDF exported successfully');
+    } catch (e) {
+      showToast('Custom export failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!mounted) return null;
 
   if (!token) {
@@ -448,6 +548,8 @@ export default function AdminDashboard() {
             <button className="btn btn-cyan btn-sm" onClick={() => triggerDailyReport(true)} title="Generate Full Report of ALL registrations">⚡ FULL REPORT</button>
           </div>
           <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT EXCEL</button>
+          <button className="btn btn-cyan btn-sm" onClick={() => setShowCustomExport(true)}>⚙ CUSTOM EXPORT</button>
+          <button className="btn btn-cyan btn-sm" onClick={() => exportToPDF()}>⤓ EXPORT PDF</button>
           <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
         </nav>
       </header>
@@ -470,7 +572,12 @@ export default function AdminDashboard() {
               <div className="filter-bar">
                 <div className="filter-group"><label>Search</label><input name="search" value={filters.search} onChange={handleFilterChange} placeholder="Name, UTR, Team..." /></div>
                 <div className="filter-group"><label>Status</label><select name="status" value={filters.status} onChange={handleFilterChange}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
-                <div className="filter-group"><label>Event</label><input name="event" value={filters.event} onChange={handleFilterChange} placeholder="Event Name..." /></div>
+                <div className="filter-group"><label>Event</label>
+                  <select name="event" value={filters.event} onChange={handleFilterChange}>
+                    <option value="">ALL EVENTS</option>
+                    {EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                  </select>
+                </div>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                   <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
                   <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
@@ -942,7 +1049,7 @@ export default function AdminDashboard() {
               <div>
                 {showRawData ? (
                   <div style={{ background: '#000', padding: '1rem', borderRadius: '4px', height: '100%', overflowY: 'auto' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--neon-yellow)', marginBottom: '0.5rem' }}>// RAW CSV RECORD PARSED AS JSON</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--neon-yellow)', marginBottom: '0.5rem' }}>{'// RAW CSV RECORD PARSED AS JSON'}</div>
                     <pre style={{ fontSize: '0.75rem', color: 'var(--neon-green)', whiteSpace: 'pre-wrap' }}>
                       {JSON.stringify(verifyModalReg._raw, null, 2)}
                     </pre>
@@ -1022,6 +1129,42 @@ export default function AdminDashboard() {
                     <button className="btn btn-cyan" style={{ flex: 1 }} onClick={() => { setRejectModalId(null); setRejectNotes(''); }}>CANCEL</button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {showCustomExport && (
+        <div className="modal-overlay" onClick={() => setShowCustomExport(false)}>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">⚙ CUSTOM REPORT EXPORT</span>
+              <button className="modal-close" onClick={() => setShowCustomExport(false)}>×</button>
+            </div>
+            <div style={{ padding: '1rem' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                Select the fields you want to include in the PDF report for the active filters ({filters.event || 'ALL EVENTS'}).
+              </p>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {AVAILABLE_FIELDS.map(field => (
+                  <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={exportFields.includes(field.id)} 
+                      onChange={() => toggleExportField(field.id)} 
+                    />
+                    <span style={{ fontSize: '0.8rem' }}>{field.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
+                <button className="btn btn-cyan" style={{ flex: 1, justifyContent: 'center' }} onClick={handleCustomExport} disabled={loading}>
+                  {loading ? 'GENERATING...' : '⤓ DOWNLOAD CUSTOM PDF'}
+                </button>
+                <button className="btn btn-red" style={{ width: '100px', justifyContent: 'center' }} onClick={() => setShowCustomExport(false)}>CANCEL</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
