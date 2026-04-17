@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
       }
 
       const pdfBytes = await pdfDoc.save();
-      return new NextResponse(pdfBytes, {
+      return new NextResponse(Buffer.from(pdfBytes), {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="registrations_${eventFilter || 'all'}.pdf"`
@@ -320,7 +320,7 @@ export async function GET(request: NextRequest) {
       }
 
       const pdfBytes = await pdfDoc.save();
-      return new NextResponse(pdfBytes, {
+      return new NextResponse(Buffer.from(pdfBytes), {
         headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="custom_report.pdf"` }
       });
     } catch (error: any) {
@@ -329,9 +329,6 @@ export async function GET(request: NextRequest) {
       client.close();
     }
   }
-
-  const { searchParams } = new URL(request.url);
-  const mode = searchParams.get('mode') || 'list';
 
   if (mode === 'daily-stats') {
     let client = new ftp.Client();
