@@ -51,7 +51,7 @@ export default function AdminDashboard() {
     "Clashpunk", "Neon Span", "L9: Santo Domingo Race", "Kabuki Roundabout",
     "Ghostgrid", "Escape the Matrix", "Pixel Play", "Structomat", "Symmetry Art",
     "Circuit Breach", "The Cypher Heist", "Grid Runner", "Cyber Smashers",
-    "Innovate", "Cyber Tug"
+    "Innovibe", "Cyber Tug"
   ];
 
   // Modals
@@ -497,6 +497,20 @@ export default function AdminDashboard() {
     }
   };
 
+  const reindexSystem = async () => {
+    if (!confirm('Re-indexing will crawl all FTP folders to update the Master Cache. This takes a few seconds but makes the dashboard load instantly for everyone. Proceed?')) return;
+    setLoading(true);
+    try {
+      const res = await axiosInstance.post('/reindex');
+      showToast(res.data.message);
+      fetchRegistrations();
+    } catch (e: any) {
+      showToast(e.response?.data?.error || 'Re-index failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!mounted) return null;
 
   if (!token) {
@@ -527,31 +541,63 @@ export default function AdminDashboard() {
   return (
     <>
       <header className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <img src="/TechUrja2026-Poster.png" alt="Logo" style={{ height: '40px', width: 'auto', borderRadius: '4px' }} />
-            <div className="logo">⚡ TECHURJA <span>ADMIN</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img src="/TechUrja2026-Poster.png" alt="Logo" style={{ height: '32px', width: 'auto', borderRadius: '4px' }} />
+            <div className="logo" style={{ fontSize: '1rem' }}>⚡ TECHURJA <span>ADMIN</span></div>
           </div>
-          <div id="system-status" style={{ display: 'flex', gap: '1.5rem', fontSize: '0.6rem', letterSpacing: '1px', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="status-dot" style={{ background: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: systemStatus.ftp ? '0 0 8px var(--neon-green)' : '0 0 8px var(--neon-red)' }}></span>
-              <span className="text-secondary">FTP SERVER:</span> <span style={{ color: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)' }}>{systemStatus.ftp ? 'ONLINE' : 'OFFLINE'}</span>
+          
+          <nav style={{ display: 'flex', gap: '0.5rem', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1.5rem' }}>
+            <button className={`btn btn-sm ${activeTab === 'feed' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('feed')}>
+              <span style={{ fontSize: '1.1rem' }}>☷</span> FEED
+            </button>
+            <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>
+              <span style={{ fontSize: '1.1rem' }}>📂</span> EXPLORER
+            </button>
+            <button className={`btn btn-sm ${activeTab === 'reports' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('reports')}>
+              <span style={{ fontSize: '1.1rem' }}>📊</span> REPORTS
+            </button>
+          </nav>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div id="system-status" style={{ display: 'flex', gap: '1rem', fontSize: '0.6rem', letterSpacing: '1px', marginRight: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(0,0,0,0.3)', padding: '0.2rem 0.6rem', borderRadius: '10px', border: '1px solid var(--border-dim)' }}>
+              <span className="status-dot" style={{ margin: 0, width: '6px', height: '6px', background: systemStatus.ftp ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: systemStatus.ftp ? '0 0 5px var(--neon-green)' : '0 0 5px var(--neon-red)' }}></span>
+              <span className="text-secondary" style={{ fontSize: '0.55rem' }}>FTP: {systemStatus.ftp ? 'ON' : 'OFF'}</span>
             </div>
           </div>
-        </div>
-        <nav style={{ display: 'flex', gap: '1rem' }}>
-          <button className={`btn btn-sm ${activeTab === 'feed' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('feed')}>FEED</button>
-          <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>EXPLORER</button>
-          <button className={`btn btn-sm ${activeTab === 'reports' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('reports')}>REPORTS</button>
-          <div style={{ display: 'flex', gap: '0.4rem', borderLeft: '1px solid var(--border-dim)', paddingLeft: '1rem' }}>
-            <button className="btn btn-red btn-sm" onClick={() => triggerDailyReport(false)} title="Generate 3PM Daily Report (Last 24h)">⚡ 3PM REPORT</button>
-            <button className="btn btn-cyan btn-sm" onClick={() => triggerDailyReport(true)} title="Generate Full Report of ALL registrations">⚡ FULL REPORT</button>
+
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+             {/* Action Dropdowns */}
+             <div className="dropdown">
+                <button className="btn btn-sm btn-red">⚡ GENERATE REPORT ▾</button>
+                <div className="dropdown-content">
+                  <button onClick={() => triggerDailyReport(false)}>🕒 3PM DAILY REPORT</button>
+                  <button onClick={() => triggerDailyReport(true)}>📁 FULL SYSTEM REPORT</button>
+                </div>
+             </div>
+
+             <div className="dropdown">
+                <button className="btn btn-sm btn-yellow">⤓ EXPORT DATA ▾</button>
+                <div className="dropdown-content">
+                  <button onClick={exportToCSV}>📊 EXCEL (.XLSX)</button>
+                  <button onClick={() => exportToPDF()}>📄 STANDARD PDF</button>
+                  <button onClick={() => setShowCustomExport(true)}>⚙ CUSTOM PDF REPORT</button>
+                </div>
+             </div>
+
+             <div className="dropdown">
+                <button className="btn btn-sm btn-cyan">⚡ SYSTEM ▾</button>
+                <div className="dropdown-content">
+                  <button onClick={reindexSystem}>🔄 RE-INDEX SYSTEM (FIX SLOWNESS)</button>
+                  <button onClick={fetchSystemStatus}>📡 CHECK FTP STATUS</button>
+                </div>
+             </div>
+
+             <button className="btn btn-red btn-sm" onClick={handleLogout} title="Logout">⏏</button>
           </div>
-          <button className="btn btn-yellow btn-sm" onClick={exportToCSV}>⤓ EXPORT EXCEL</button>
-          <button className="btn btn-cyan btn-sm" onClick={() => setShowCustomExport(true)}>⚙ CUSTOM EXPORT</button>
-          <button className="btn btn-cyan btn-sm" onClick={() => exportToPDF()}>⤓ EXPORT PDF</button>
-          <button className="btn btn-red btn-sm" onClick={handleLogout}>⏏ LOGOUT</button>
-        </nav>
+        </div>
       </header>
 
       <main className="main-container">

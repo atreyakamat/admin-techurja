@@ -71,103 +71,143 @@ export async function GET(request: NextRequest) {
       port: parseInt(process.env.FTP_PORT || '21'),
       secure: false,
     });
-    const registrationsPath = '/registrations/';
-    
-    let folders: ftp.FileInfo[] = [];
-    try {
-        folders = await client.list(registrationsPath);
-    } catch(e) {
-        folders = [];
-    }
 
-    const targetFolders = folders.filter(f => f.isDirectory);
-    const registrations: any[] = [];
-    const stats = { total: 0, pending: 0, verified: 0, rejected: 0 };
+    const registrationsPath = '/registrations/';
+    const masterPath = '/registrations_master.json';
     
-    for (const folder of targetFolders) {
-      const folderName = folder.name;
-      const csvPath = `${registrationsPath}${folderName}/details.csv`;
-      
-      try {
+    let registrations: any[] = [];
+    let stats = { total: 0, pending: 0, verified: 0, rejected: 0 };
+    let useFallback = false;
+
+    // TRY LOADING FROM MASTER JSON FIRST (FASTER ON NETLIFY)
+    try {
         const chunks: Buffer[] = [];
         const { Writable } = await import('stream');
         const writable = new Writable({
-          write(chunk, encoding, callback) {
-            chunks.push(chunk);
-            callback();
-          }
-        });
-
-        await client.downloadTo(writable, csvPath);
-        const buffer = Buffer.concat(chunks);
-        const csvContent = buffer.toString('utf-8');
-        
-        const record = parseCsvContent(csvContent);
-        
-        if (Object.keys(record).length === 0) continue;
-
-        const getVal = (keys: string[]) => {
-          for (const k of keys) {
-            const foundKey = Object.keys(record).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
-            if (foundKey !== undefined) {
-              const val = record[foundKey];
-              if (val && val.toUpperCase() !== 'N/A') return val;
+            write(chunk, encoding, callback) {
+                chunks.push(chunk);
+                callback();
             }
-          }
-          return undefined;
-        };
-
-        const reg: any = { _raw: { ...record } };
-        
-        reg.id = folderName;
-        reg.name = getVal(['name']) || '—';
-        reg.email = getVal(['email']) || '—';
-        reg.phone = getVal(['phone']) || '—';
-        reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
-        reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
-        reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
-        reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
-        
-        let count = 1;
-        for (let i = 2; i <= 4; i++) {
-          const pName = getVal([`participant${i}`, `Participant ${i} Name`]);
-          reg[`participant${i}`] = pName || '';
-          reg[`email${i}`] = getVal([`email${i}`, `Participant ${i} Email`]) || '';
-          reg[`phone${i}`] = getVal([`phone${i}`, `Participant ${i} Phone`]) || '';
-          if (pName) count++;
-        }
-        reg.participantCount = count;
-
-        const status = getVal(['status', 'Status']) || 'pending';
-        reg.status = status.toLowerCase();
-        reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
-        
-        const accom = String(getVal(['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
-        reg.needsAccommodation = ['YES', 'TRUE', '1', 'NEEDED'].includes(accom);
-        
-        reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
-
-        const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName} ${JSON.stringify(reg._raw)}`.toLowerCase();
-        let match = true;
-        
-        if (search && !searchString.includes(search)) match = false;
-        if (statusFilter && reg.status !== statusFilter) match = false;
-        if (eventFilter && !reg.eventName.toLowerCase().includes(eventFilter)) match = false;
-        
-        if (match) registrations.push(reg);
-
-        stats.total++;
-        if (reg.status === 'verified') stats.verified++;
-        else if (reg.status === 'rejected') stats.rejected++;
-        else stats.pending++;
-      } catch (e) {
-        console.warn(`[FTP_SKIP]: Failed to fetch/parse for ${folderName}`);
-      }
+        });
+        await client.downloadTo(writable, masterPath);
+        const data = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+        registrations = data.registrations || [];
+        stats = data.stats || { total: 0, pending: 0, verified: 0, rejected: 0 };
+        console.log("Loaded registrations from Master JSON");
+    } catch (e) {
+        console.warn("Master JSON not found or invalid, falling back to crawl...");
+        useFallback = true;
     }
 
-    registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (useFallback) {
+        let folders: ftp.FileInfo[] = [];
+        try {
+            folders = await client.list(registrationsPath);
+        } catch(e) {
+            folders = [];
+        }
 
-    return NextResponse.json({ registrations, stats });
+        const targetFolders = folders.filter(f => f.isDirectory);
+        
+        for (const folder of targetFolders) {
+          const folderName = folder.name;
+          const csvPath = `${registrationsPath}${folderName}/details.csv`;
+          
+          try {
+            const chunks: Buffer[] = [];
+            const { Writable } = await import('stream');
+            const writable = new Writable({
+              write(chunk, encoding, callback) {
+                chunks.push(chunk);
+                callback();
+              }
+            });
+
+            await client.downloadTo(writable, csvPath);
+            const buffer = Buffer.concat(chunks);
+            const csvContent = buffer.toString('utf-8');
+            const record = parseCsvContent(csvContent);
+            
+            if (Object.keys(record).length === 0) continue;
+
+            const getVal = (keys: string[]) => {
+              for (const k of keys) {
+                const foundKey = Object.keys(record).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                if (foundKey !== undefined) {
+                  const val = record[foundKey];
+                  if (val && val.toUpperCase() !== 'N/A') return val;
+                }
+              }
+              return undefined;
+            };
+
+            const reg: any = { _raw: { ...record } };
+            reg.id = folderName;
+            reg.name = getVal(['name']) || '—';
+            reg.email = getVal(['email']) || '—';
+            reg.phone = getVal(['phone']) || '—';
+            reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
+            reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
+            reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
+            reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
+            
+            let count = 1;
+            for (let i = 2; i <= 4; i++) {
+              const pName = getVal([`participant${i}`, `Participant ${i} Name`]);
+              if (pName) count++;
+            }
+            reg.participantCount = count;
+
+            const status = getVal(['status', 'Status']) || 'pending';
+            reg.status = status.toLowerCase();
+            reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
+            
+            const accom = String(getVal(['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
+            reg.needsAccommodation = ['YES', 'TRUE', '1', 'NEEDED'].includes(accom);
+            
+            reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
+
+            registrations.push(reg);
+            stats.total++;
+            if (reg.status === 'verified') stats.verified++;
+            else if (reg.status === 'rejected') stats.rejected++;
+            else stats.pending++;
+          } catch (e) { /* skip */ }
+        }
+    }
+
+    // APPLY FILTERS (since master contains ALL data)
+    let filteredRegs = registrations;
+    if (search || statusFilter || eventFilter || categoryFilter || isAcceptedFilter !== 'all' || regFrom || regTo) {
+        filteredRegs = registrations.filter(reg => {
+            const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName} ${JSON.stringify(reg._raw)}`.toLowerCase();
+            
+            if (search && !searchString.includes(search)) return false;
+            if (statusFilter && reg.status !== statusFilter) return false;
+            if (eventFilter && !reg.eventName.toLowerCase().includes(eventFilter)) return false;
+            if (categoryFilter && !(reg.category || '').toLowerCase().includes(categoryFilter)) return false;
+            if (isAcceptedFilter !== 'all') {
+                const acceptedVal = isAcceptedFilter === 'accepted' ? 1 : 0;
+                if (reg.isAccepted !== acceptedVal) return false;
+            }
+            if (regFrom) {
+                const regDate = new Date(reg.createdAt);
+                const fromDate = new Date(regFrom);
+                if (regDate < fromDate) return false;
+            }
+            if (regTo) {
+                const regDate = new Date(reg.createdAt);
+                const toDate = new Date(regTo);
+                toDate.setHours(23, 59, 59, 999);
+                if (regDate > toDate) return false;
+            }
+            return true;
+        });
+    }
+
+    filteredRegs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return NextResponse.json({ registrations: filteredRegs, stats });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
