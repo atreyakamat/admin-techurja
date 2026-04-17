@@ -1,46 +1,39 @@
 # ⚡ TechUrja 2026 Coordinator Access Report
 
-This document contains the access links for all event coordinators. These links are optimized for speed and will load instantly on Netlify.
+This document contains the access links and unique passwords for all event coordinators.
 
-## 🔑 Access Credentials
+## 🔐 Access Policy
+*   **Password Logic:** Each event has a unique password, which is its **Event Name reversed** (case-sensitive).
 *   **Base URL:** `https://techurjahacks.netlify.app`
-*   **Access Password:** *(Uses your configured ADMIN_SECRET unless COORDINATOR_PASSWORD is set in Netlify env)*
 
 ---
 
-## 🔗 Event-Specific Links
+## 🔗 Event-Specific Access
 
-| Event Name | Access Link |
-| :--- | :--- |
-| **Innovibe** | [Click here](https://techurjahacks.netlify.app/coordinator/innovibe) |
-| **Robowars** | [Click here](https://techurjahacks.netlify.app/coordinator/robowars) |
-| **Cyber Tug** | [Click here](https://techurjahacks.netlify.app/coordinator/cybertug) |
-| **Cyber Strike** | [Click here](https://techurjahacks.netlify.app/coordinator/cyberstrike) |
-| **Robo Nexus** | [Click here](https://techurjahacks.netlify.app/coordinator/robonexus) |
-| **War Room Protocol** | [Click here](https://techurjahacks.netlify.app/coordinator/warroom) |
-| **Techyothon** | [Click here](https://techurjahacks.netlify.app/coordinator/techyothon) |
-| **Clashpunk** | [Click here](https://techurjahacks.netlify.app/coordinator/clashpunk) |
-| **Neon Span** | [Click here](https://techurjahacks.netlify.app/coordinator/neonspan) |
-| **L9: Santo Domingo Race** | [Click here](https://techurjahacks.netlify.app/coordinator/race) |
-| **Kabuki Roundabout** | [Click here](https://techurjahacks.netlify.app/coordinator/kabuki) |
-| **Ghostgrid** | [Click here](https://techurjahacks.netlify.app/coordinator/ghostgrid) |
-| **Escape the Matrix** | [Click here](https://techurjahacks.netlify.app/coordinator/matrix) |
-| **Pixel Play** | [Click here](https://techurjahacks.netlify.app/coordinator/pixelplay) |
-| **Structomat** | [Click here](https://techurjahacks.netlify.app/coordinator/structomat) |
-| **Symmetry Art** | [Click here](https://techurjahacks.netlify.app/coordinator/symmetry) |
-| **Circuit Breach** | [Click here](https://techurjahacks.netlify.app/coordinator/breach) |
-| **The Cypher Heist** | [Click here](https://techurjahacks.netlify.app/coordinator/heist) |
-| **Grid Runner** | [Click here](https://techurjahacks.netlify.app/coordinator/runner) |
-| **Cyber Smashers** | [Click here](https://techurjahacks.netlify.app/coordinator/smashers) |
+| Event Name | Access Link | Password (Reversed Name) |
+| :--- | :--- | :--- |
+| **Innovibe** | [Open Portal](https://techurjahacks.netlify.app/coordinator/innovibe) | `ebivonnI` |
+| **Robowars** | [Open Portal](https://techurjahacks.netlify.app/coordinator/robowars) | `srawoboR` |
+| **Cyber Tug** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cybertug) | `guT rebyC` |
+| **Cyber Strike** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cyberstrike) | `ekirtS rebyC` |
+| **Robo Nexus** | [Open Portal](https://techurjahacks.netlify.app/coordinator/robonexus) | `suxeN oboR` |
+| **War Room Protocol** | [Open Portal](https://techurjahacks.netlify.app/coordinator/warroom) | [See Note]* |
+| **Techyothon** | [Open Portal](https://techurjahacks.netlify.app/coordinator/techyothon) | `nohtoyhceT` |
+| **Clashpunk** | [Open Portal](https://techurjahacks.netlify.app/coordinator/clashpunk) | `knuphsalaC` |
+| **Neon Span** | [Open Portal](https://techurjahacks.netlify.app/coordinator/neonspan) | `napS noeN` |
+| **Escape the Matrix** | [Open Portal](https://techurjahacks.netlify.app/coordinator/matrix) | `xirtaM eht epacsE` |
+| **Grid Runner** | [Open Portal](https://techurjahacks.netlify.app/coordinator/runner) | `rennuR dirG` |
+| **Cyber Smashers** | [Open Portal](https://techurjahacks.netlify.app/coordinator/smashers) | `srehsamS rebyC` |
+
+*\*Note: Use the exact event name shown in the portal title and reverse it, including spaces and special characters.*
 
 ---
 
-## 🛠 How to Update Data
-The coordinator portal uses a **Master Cache** to remain fast on Netlify. When new registrations arrive:
+## 🛠 Important: Updating Data
+To ensure coordinators see the latest registrations:
 1.  Login to the [Admin Dashboard](https://techurjahacks.netlify.app/admin).
-2.  Click the **⚡ SYSTEM** dropdown in the top bar.
-3.  Click **🔄 RE-INDEX SYSTEM (FIX SLOWNESS)**.
-4.  Once finished, all coordinator links will reflect the latest data.
+2.  Click **⚡ SYSTEM** -> **🔄 RE-INDEX SYSTEM**.
+3.  This updates the data for all coordinator links simultaneously.
 
 ---
 *Generated on: April 17, 2026*

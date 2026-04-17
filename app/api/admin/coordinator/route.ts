@@ -6,16 +6,16 @@ export async function GET(request: NextRequest) {
   const eventName = searchParams.get('event');
   const password = searchParams.get('password');
 
-  // Verify Coordinator Password
-  // You can set COORDINATOR_PASSWORD in your .env
-  const masterPassword = process.env.COORDINATOR_PASSWORD || process.env.ADMIN_SECRET;
-
-  if (!password || password !== masterPassword) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   if (!eventName) {
     return NextResponse.json({ error: 'Event name required' }, { status: 400 });
+  }
+
+  // Generate dynamic password: Reversed Event Name
+  // e.g., "Innovibe" -> "ebivonnI"
+  const expectedPassword = eventName.split('').reverse().join('');
+
+  if (!password || password !== expectedPassword) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const client = new ftp.Client();
