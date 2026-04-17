@@ -12,20 +12,26 @@ This document contains the access links and unique passwords for all event coord
 
 | Event Name | Access Link | Password (Reversed Name) |
 | :--- | :--- | :--- |
-| **Innovibe** | [Open Portal](https://techurjahacks.netlify.app/coordinator/innovibe) | `ebivonnI` |
 | **Robowars** | [Open Portal](https://techurjahacks.netlify.app/coordinator/robowars) | `srawoboR` |
-| **Cyber Tug** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cybertug) | `guT rebyC` |
-| **Cyber Strike** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cyberstrike) | `ekirtS rebyC` |
 | **Robo Nexus** | [Open Portal](https://techurjahacks.netlify.app/coordinator/robonexus) | `suxeN oboR` |
-| **War Room Protocol** | [Open Portal](https://techurjahacks.netlify.app/coordinator/warroom) | [See Note]* |
+| **Cyber Strike** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cyberstrike) | `ekirtS rebyC` |
+| **War Room Protocol** | [Open Portal](https://techurjahacks.netlify.app/coordinator/warroom) | `locotorP mooR raW` |
 | **Techyothon** | [Open Portal](https://techurjahacks.netlify.app/coordinator/techyothon) | `nohtoyhceT` |
 | **Clashpunk** | [Open Portal](https://techurjahacks.netlify.app/coordinator/clashpunk) | `knuphsalaC` |
 | **Neon Span** | [Open Portal](https://techurjahacks.netlify.app/coordinator/neonspan) | `napS noeN` |
+| **L9: Santo Domingo Race** | [Open Portal](https://techurjahacks.netlify.app/coordinator/race) | `ecaR ognimoD otnaS :9L` |
+| **Kabuki Roundabout** | [Open Portal](https://techurjahacks.netlify.app/coordinator/kabuki) | `tuobadnuoR ikubaK` |
+| **Ghostgrid** | [Open Portal](https://techurjahacks.netlify.app/coordinator/ghostgrid) | `dirgtsonG` |
 | **Escape the Matrix** | [Open Portal](https://techurjahacks.netlify.app/coordinator/matrix) | `xirtaM eht epacsE` |
+| **Pixel Play** | [Open Portal](https://techurjahacks.netlify.app/coordinator/pixelplay) | `yalP lexiP` |
+| **Structomat** | [Open Portal](https://techurjahacks.netlify.app/coordinator/structomat) | `tamourtS` |
+| **Symmetry Art** | [Open Portal](https://techurjahacks.netlify.app/coordinator/symmetry) | `trA yrtemmyS` |
+| **Circuit Breach** | [Open Portal](https://techurjahacks.netlify.app/coordinator/breach) | `hcaerB tiucriC` |
+| **The Cypher Heist** | [Open Portal](https://techurjahacks.netlify.app/coordinator/heist) | `tsieH rehpyC ehT` |
 | **Grid Runner** | [Open Portal](https://techurjahacks.netlify.app/coordinator/runner) | `rennuR dirG` |
 | **Cyber Smashers** | [Open Portal](https://techurjahacks.netlify.app/coordinator/smashers) | `srehsamS rebyC` |
-
-*\*Note: Use the exact event name shown in the portal title and reverse it, including spaces and special characters.*
+| **Innovibe** | [Open Portal](https://techurjahacks.netlify.app/coordinator/innovibe) | `ebivonnI` |
+| **Cyber Tug** | [Open Portal](https://techurjahacks.netlify.app/coordinator/cybertug) | `guT rebyC` |
 
 ---
 
