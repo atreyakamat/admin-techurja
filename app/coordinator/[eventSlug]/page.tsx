@@ -29,7 +29,7 @@ export default function CoordinatorPage({ params }: { params: Promise<{ eventSlu
     'structomat': 'Structomat',
     'symmetry': 'Symmetry Art',
     'breach': 'Circuit Breach',
-    'heist': 'The Cypher Heist',
+    'heist': 'The Cyber Heist',
     'runner': 'Grid Runner',
     'smashers': 'Cyber Smashers',
     'innovibe': 'Innovibe',

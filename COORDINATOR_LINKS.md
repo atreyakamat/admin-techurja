@@ -27,7 +27,7 @@ This document contains the access links and unique passwords for all event coord
 | **Structomat** | [Open Portal](https://techurjahacks.netlify.app/coordinator/structomat) | `tamourtS` |
 | **Symmetry Art** | [Open Portal](https://techurjahacks.netlify.app/coordinator/symmetry) | `trA yrtemmyS` |
 | **Circuit Breach** | [Open Portal](https://techurjahacks.netlify.app/coordinator/breach) | `hcaerB tiucriC` |
-| **The Cypher Heist** | [Open Portal](https://techurjahacks.netlify.app/coordinator/heist) | `tsieH rehpyC ehT` |
+| **The Cyber Heist** | [Open Portal](https://techurjahacks.netlify.app/coordinator/heist) | `tsieH rebyC ehT` |
 | **Grid Runner** | [Open Portal](https://techurjahacks.netlify.app/coordinator/runner) | `rennuR dirG` |
 | **Cyber Smashers** | [Open Portal](https://techurjahacks.netlify.app/coordinator/smashers) | `srehsamS rebyC` |
 | **Innovibe** | [Open Portal](https://techurjahacks.netlify.app/coordinator/innovibe) | `ebivonnI` |

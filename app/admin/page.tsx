@@ -50,7 +50,7 @@ export default function AdminDashboard() {
     "Robowars", "Robo Nexus", "Cyber Strike", "War Room Protocol", "Techyothon",
     "Clashpunk", "Neon Span", "L9: Santo Domingo Race", "Kabuki Roundabout",
     "Ghostgrid", "Escape the Matrix", "Pixel Play", "Structomat", "Symmetry Art",
-    "Circuit Breach", "The Cypher Heist", "Grid Runner", "Cyber Smashers",
+    "Circuit Breach", "The Cyber Heist", "Grid Runner", "Cyber Smashers",
     "Innovibe", "Cyber Tug"
   ];
 
