@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
 
   // Generate dynamic password: Reversed Event Name
   // e.g., "Innovibe" -> "ebivonnI"
-  const expectedPassword = eventName.split('').reverse().join('');
+  const expectedPassword = eventName.split('').reverse().join('').trim();
 
-  if (!password || password !== expectedPassword) {
+  if (!password || password.trim() !== expectedPassword) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
