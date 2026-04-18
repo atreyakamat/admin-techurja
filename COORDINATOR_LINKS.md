@@ -42,4 +42,6 @@ To ensure coordinators see the latest registrations:
 3.  This updates the data for all coordinator links simultaneously.
 
 ---
-*Generated on: April 17, 2026*
+*Generated on: April 18, 2026*
+
+**Note:** The system now automatically maps variations like "LFR", "Roborace", and "Cypher Heist" to their official names during re-indexing. If registrations are missing, please perform a **RE-INDEX SYSTEM** in the Admin Dashboard.
