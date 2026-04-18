@@ -101,7 +101,37 @@ export async function POST(request: NextRequest) {
         reg.name = getVal(['name']) || '—';
         reg.email = getVal(['email']) || '—';
         reg.phone = getVal(['phone']) || '—';
-        reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
+        const rawEventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
+        
+        // Normalize Event Name
+        const normalizationMap: Record<string, string> = {
+          'lfr': 'Grid Runner',
+          'line follower robot': 'Grid Runner',
+          'line follower': 'Grid Runner',
+          'the cypher heist': 'The Cyber Heist',
+          'cypher heist': 'The Cyber Heist',
+          'cyber heist': 'The Cyber Heist',
+          'roborace': 'L9: Santo Domingo Race',
+          'marketing pitch': 'War Room Protocol',
+          'circuit debugging': 'Circuit Breach',
+          'virtual cricket': 'Cyber Smashers',
+          'clash royale': 'Clashpunk',
+          'fifa': 'Pixel Play',
+          'bridge building': 'Neon Span',
+          'robo sumo': 'Robo Nexus',
+          'robo soccer': 'Cyber Strike',
+          'robomaze': 'Kabuki Roundabout',
+          'coding challenge': 'Escape the Matrix',
+          'ctf challenge': 'Ghostgrid',
+          'abstract art designing': 'Symmetry Art',
+          'straw structure designing': 'Structomat',
+          'project expo': 'Innovibe',
+          'robo tug of war': 'Cyber Tug'
+        };
+
+        const normalized = normalizationMap[rawEventName.toLowerCase().trim()];
+        reg.eventName = normalized || rawEventName;
+        
         reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
         reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
         reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
