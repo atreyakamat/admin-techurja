@@ -1,48 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as ftp from 'basic-ftp';
-import { parse } from 'csv-parse/sync';
-
-async function getFtpClient() {
-  const client = new ftp.Client();
-  await client.access({
-    host: process.env.FTP_HOST,
-    user: process.env.FTP_USER,
-    password: process.env.FTP_PASS,
-    port: parseInt(process.env.FTP_PORT || '21'),
-    secure: false,
-  });
-  return client;
-}
-
-function parseCsvContent(csvContent: string): Record<string, string> {
-  const records = parse(csvContent, {
-    skip_empty_lines: true,
-    trim: true,
-    relax_quotes: true,
-  });
-
-  const isKeyValue = records.length > 0 && records.every((r: any) => r.length === 2);
-
-  if (isKeyValue) {
-    const result: Record<string, string> = {};
-    for (const row of records) {
-      result[row[0]] = row[1] || '';
-    }
-    return result;
-  }
-
-  if (records.length >= 2) {
-    const headers = records[0];
-    const data = records[1];
-    const result: Record<string, string> = {};
-    headers.forEach((h: string, i: number) => {
-      result[h] = data[i] || '';
-    });
-    return result;
-  }
-
-  return {};
-}
+import { parseCsvContent, getVal, normalizeEventName, parseRegistrationDate } from '@/lib/csv-utils';
 
 export async function GET(request: NextRequest) {
   const adminSecret = process.env.ADMIN_SECRET;
@@ -79,7 +37,7 @@ export async function GET(request: NextRequest) {
     let stats = { total: 0, pending: 0, verified: 0, rejected: 0 };
     let useFallback = false;
 
-    // TRY LOADING FROM MASTER JSON FIRST (FASTER ON NETLIFY)
+    // TRY LOADING FROM MASTER JSON FIRST
     try {
         const chunks: Buffer[] = [];
         const { Writable } = await import('stream');
@@ -93,9 +51,7 @@ export async function GET(request: NextRequest) {
         const data = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
         registrations = data.registrations || [];
         stats = data.stats || { total: 0, pending: 0, verified: 0, rejected: 0 };
-        console.log("Loaded registrations from Master JSON");
     } catch (e) {
-        console.warn("Master JSON not found or invalid, falling back to crawl...");
         useFallback = true;
     }
 
@@ -130,42 +86,35 @@ export async function GET(request: NextRequest) {
             
             if (Object.keys(record).length === 0) continue;
 
-            const getVal = (keys: string[]) => {
-              for (const k of keys) {
-                const foundKey = Object.keys(record).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
-                if (foundKey !== undefined) {
-                  const val = record[foundKey];
-                  if (val && val.toUpperCase() !== 'N/A') return val;
-                }
-              }
-              return undefined;
-            };
-
             const reg: any = { _raw: { ...record } };
             reg.id = folderName;
-            reg.name = getVal(['name']) || '—';
-            reg.email = getVal(['email']) || '—';
-            reg.phone = getVal(['phone']) || '—';
-            reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
-            reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
-            reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
-            reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
+            reg.name = getVal(record, ['name']) || '—';
+            reg.email = getVal(record, ['email']) || '—';
+            reg.phone = getVal(record, ['phone']) || '—';
+            
+            const rawEventName = getVal(record, ['event_name', 'eventName', 'Event Name', 'Event']) || '—';
+            reg.eventName = normalizeEventName(rawEventName);
+            
+            reg.teamName = getVal(record, ['team_name', 'teamName', 'Team Name', 'Team']) || '—';
+            reg.transactionId = getVal(record, ['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
+            reg.institution = getVal(record, ['institution', 'college', 'College', 'Institution Name']) || '—';
             
             let count = 1;
             for (let i = 2; i <= 4; i++) {
-              const pName = getVal([`participant${i}`, `Participant ${i} Name`]);
+              const pName = getVal(record, [`participant${i}`, `Participant ${i} Name`]);
               if (pName) count++;
             }
             reg.participantCount = count;
 
-            const status = getVal(['status', 'Status']) || 'pending';
+            const status = getVal(record, ['status', 'Status']) || 'pending';
             reg.status = status.toLowerCase();
-            reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
+            reg.isAccepted = parseInt(getVal(record, ['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
             
-            const accom = String(getVal(['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
+            const accom = String(getVal(record, ['needs_accommodation', 'needsAccommodation', 'Accommodation']) || '').toUpperCase();
             reg.needsAccommodation = ['YES', 'TRUE', '1', 'NEEDED'].includes(accom);
             
-            reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
+            const rawDate = getVal(record, ['timestamp', 'createdAt', 'Date', 'date']);
+            reg.createdAt = rawDate ? parseRegistrationDate(rawDate).toISOString() : new Date().toISOString();
 
             registrations.push(reg);
             stats.total++;
@@ -176,7 +125,7 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // APPLY FILTERS (since master contains ALL data)
+    // APPLY FILTERS
     let filteredRegs = registrations;
     if (search || statusFilter || eventFilter || categoryFilter || isAcceptedFilter !== 'all' || regFrom || regTo) {
         filteredRegs = registrations.filter(reg => {
@@ -191,13 +140,13 @@ export async function GET(request: NextRequest) {
                 if (reg.isAccepted !== acceptedVal) return false;
             }
             if (regFrom) {
-                const regDate = new Date(reg.createdAt);
-                const fromDate = new Date(regFrom);
+                const regDate = parseRegistrationDate(reg.createdAt);
+                const fromDate = parseRegistrationDate(regFrom);
                 if (regDate < fromDate) return false;
             }
             if (regTo) {
-                const regDate = new Date(reg.createdAt);
-                const toDate = new Date(regTo);
+                const regDate = parseRegistrationDate(reg.createdAt);
+                const toDate = parseRegistrationDate(regTo);
                 toDate.setHours(23, 59, 59, 999);
                 if (regDate > toDate) return false;
             }
