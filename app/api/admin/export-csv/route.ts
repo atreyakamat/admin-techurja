@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as ftp from 'basic-ftp';
 import { parse } from 'csv-parse/sync';
 import * as ExcelJS from 'exceljs';
+import { getRegistrations } from '@/lib/registration-fetcher';
 
 async function getFtpClient() {
   const client = new ftp.Client();
@@ -74,93 +75,7 @@ export async function GET(request: NextRequest) {
     });
     const registrationsPath = '/registrations/';
     
-    let folders: ftp.FileInfo[] = [];
-    try {
-        folders = await client.list(registrationsPath);
-    } catch(e) {
-        folders = [];
-    }
-
-    const targetFolders = folders.filter(f => f.isDirectory);
-    const registrations: any[] = [];
-    
-    for (const folder of targetFolders) {
-      const folderName = folder.name;
-      const csvPath = `${registrationsPath}${folderName}/details.csv`;
-      
-      try {
-        const chunks: Buffer[] = [];
-        const { Writable } = await import('stream');
-        const writable = new Writable({
-          write(chunk, encoding, callback) {
-            chunks.push(chunk);
-            callback();
-          }
-        });
-
-        await client.downloadTo(writable, csvPath);
-        const buffer = Buffer.concat(chunks);
-        const csvContent = buffer.toString('utf-8');
-        
-        const record = parseCsvContent(csvContent);
-        if (Object.keys(record).length === 0) continue;
-
-        const getVal = (keys: string[]) => {
-          for (const k of keys) {
-            const foundKey = Object.keys(record).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
-            if (foundKey !== undefined) {
-              const val = record[foundKey];
-              if (val && val.toUpperCase() !== 'N/A') return val;
-            }
-          }
-          return undefined;
-        };
-
-        const reg: any = { _raw: { ...record } };
-        reg.id = folderName;
-        reg.name = getVal(['name']) || '—';
-        reg.email = getVal(['email']) || '—';
-        reg.phone = getVal(['phone']) || '—';
-        reg.eventName = getVal(['event_name', 'eventName', 'Event Name', 'Event']) || '—';
-        reg.teamName = getVal(['team_name', 'teamName', 'Team Name', 'Team']) || '—';
-        reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
-        reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
-        
-        const status = getVal(['status', 'Status']) || 'pending';
-        reg.status = status.toLowerCase();
-        reg.isAccepted = parseInt(getVal(['isAccepted', 'accepted']) || (reg.status === 'verified' ? '1' : '0'));
-        reg.createdAt = getVal(['timestamp', 'createdAt', 'Date', 'date']) || new Date().toISOString();
-
-        const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName}`.toLowerCase();
-        let match = true;
-        
-        if (search && !searchString.includes(search)) match = false;
-        if (statusFilter && reg.status !== statusFilter) match = false;
-        if (eventFilter && !reg.eventName.toLowerCase().includes(eventFilter)) match = false;
-        if (categoryFilter && !(reg.category || '').toLowerCase().includes(categoryFilter)) match = false;
-        if (isAcceptedFilter !== 'all') {
-          const acceptedVal = isAcceptedFilter === 'accepted' ? 1 : 0;
-          if (reg.isAccepted !== acceptedVal) match = false;
-        }
-        if (regFrom) {
-          const regDate = new Date(reg.createdAt);
-          const fromDate = new Date(regFrom);
-          if (regDate < fromDate) match = false;
-        }
-        if (regTo) {
-          const regDate = new Date(reg.createdAt);
-          const toDate = new Date(regTo);
-          toDate.setHours(23, 59, 59, 999);
-          if (regDate > toDate) match = false;
-        }
-
-        if (match) registrations.push(reg);
-      } catch (e) {
-        // Skip
-      }
-    }
-
-    registrations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const registrations = await getRegistrations(client);
 
     // Load event details for fallback pricing
     const fs = await import('fs');
@@ -170,7 +85,12 @@ export async function GET(request: NextRequest) {
       const eventDetailsPath = pathLib.join(process.cwd(), 'event-details.csv');
       if (fs.existsSync(eventDetailsPath)) {
         const eventCsv = fs.readFileSync(eventDetailsPath, 'utf-8');
-        const eventRecords = parse(eventCsv, { columns: true, skip_empty_lines: true });
+        const eventRecords = parse(eventCsv, { 
+          columns: true, 
+          skip_empty_lines: true,
+          relax_column_count: true,
+          relax_quotes: true
+        });
         eventRecords.forEach((rec: any) => {
           if (rec['Event Name'] && rec['Registration Fees']) {
             eventPricing[rec['Event Name'].toLowerCase().trim()] = rec['Registration Fees'];
@@ -180,6 +100,36 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       console.error('Failed to load event pricing:', e);
     }
+
+    let filteredRegs = registrations;
+    if (search || statusFilter || eventFilter || categoryFilter || isAcceptedFilter !== 'all' || regFrom || regTo) {
+        filteredRegs = registrations.filter((reg: any) => {
+            const searchString = `${reg.id} ${reg.name} ${reg.email} ${reg.teamName} ${reg.transactionId} ${reg.institution} ${reg.eventName}`.toLowerCase();
+            
+            if (search && !searchString.includes(search)) return false;
+            if (statusFilter && reg.status !== statusFilter) return false;
+            if (eventFilter && !reg.eventName.toLowerCase().includes(eventFilter)) return false;
+            if (categoryFilter && !(reg.category || '').toLowerCase().includes(categoryFilter)) return false;
+            if (isAcceptedFilter !== 'all') {
+              const acceptedVal = isAcceptedFilter === 'accepted' ? 1 : 0;
+              if (reg.isAccepted !== acceptedVal) return false;
+            }
+            if (regFrom) {
+              const regDate = new Date(reg.createdAt);
+              const fromDate = new Date(regFrom);
+              if (regDate < fromDate) return false;
+            }
+            if (regTo) {
+              const regDate = new Date(reg.createdAt);
+              const toDate = new Date(regTo);
+              toDate.setHours(23, 59, 59, 999);
+              if (regDate > toDate) return false;
+            }
+            return true;
+        });
+    }
+
+    filteredRegs.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     // Create Excel Workbook
     const workbook = new ExcelJS.Workbook();
@@ -202,39 +152,21 @@ export async function GET(request: NextRequest) {
       fgColor: { argb: 'FFE0E0E0' }
     };
 
-    registrations.forEach((reg, index) => {
+    filteredRegs.forEach((reg: any, index: number) => {
       const teamOrIndiv = reg.teamName && reg.teamName !== '—' ? reg.teamName : reg.name;
       
-      // Improved amount detection
+      // Improved amount detection - for now use fallback to event pricing
       let amount = '—';
-      const possibleAmountKeys = ['amount', 'Amount', 'fees', 'Fees', 'registration_fees', 'Registration Fees', 'paid_amount', 'Price'];
-      for (const k of possibleAmountKeys) {
-        const foundKey = Object.keys(reg._raw || {}).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
-        if (foundKey && reg._raw[foundKey] && reg._raw[foundKey] !== 'N/A') {
-          amount = reg._raw[foundKey];
-          break;
-        }
-      }
-
-      // Fallback to event-details.csv if still empty
-      if (amount === '—' && reg.eventName) {
+      
+      // Fallback to event-details.csv
+      if (reg.eventName) {
         const eventKey = reg.eventName.toLowerCase().trim();
         const feeConfig = eventPricing[eventKey];
         if (feeConfig) {
           if (feeConfig.includes(';')) {
             // Complex fee string like "15kgs:1180; 8kgs:944; 3lbs:590"
-            // Try to find a match in the raw record for weight or category
-            const subKeySearch = JSON.stringify(reg._raw || {}).toLowerCase();
             const tiers = feeConfig.split(';').map(t => t.trim());
-            let matchedTier = '';
-            for (const tier of tiers) {
-              const label = tier.split(':')[0].toLowerCase().trim();
-              if (label && subKeySearch.includes(label)) {
-                matchedTier = tier.split(':')[1]?.trim() || tier;
-                break;
-              }
-            }
-            amount = matchedTier || feeConfig;
+            amount = tiers[0].split(':')[1]?.trim() || feeConfig;
           } else {
             amount = feeConfig;
           }
