@@ -10,7 +10,7 @@ export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState('feed'); // 'feed', 'explorer' or 'reports'
+  const [activeTab, setActiveTab] = useState('feed'); // 'feed', 'explorer', 'reports', or 'mysql'
   
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, rejected: 0 });
@@ -25,6 +25,15 @@ export default function AdminDashboard() {
   const [reportsLoading, setReportsLoading] = useState(false);
   const [dailyStats, setDailyStats] = useState<any[]>([]);
   const [reportSubTab, setReportSubTab] = useState('stats'); // 'stats' or 'archived'
+
+  // MySQL State
+  const [mysqlRegistrations, setMysqlRegistrations] = useState<any[]>([]);
+  const [mysqlLoading, setMysqlLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [mysqlFilters, setMysqlFilters] = useState({
+    search: '', status: '', event: ''
+  });
 
   // ... (explorer state)
   const [explorerPath, setExplorerPath] = useState('/registrations');
@@ -118,6 +127,44 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     setToken('');
     localStorage.removeItem('adminToken');
+  };
+
+  const fetchMysqlRegistrations = useCallback(async () => {
+    if (!token || activeTab !== 'mysql') return;
+    setMysqlLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (mysqlFilters.search) params.append('search', mysqlFilters.search);
+      if (mysqlFilters.status) params.append('status', mysqlFilters.status);
+      if (mysqlFilters.event) params.append('eventName', mysqlFilters.event);
+      
+      const res = await axiosInstance.get(`/db-registrations?${params.toString()}`);
+      setMysqlRegistrations(res.data.data || []);
+    } catch (e: any) {
+      if (e.response?.status === 401) {
+        showToast('Unauthorized access to database', 'error');
+        handleLogout();
+      } else {
+        showToast('Failed to fetch MySQL data', 'error');
+      }
+    } finally {
+      setMysqlLoading(false);
+    }
+  }, [token, activeTab, mysqlFilters]);
+
+  const triggerDatabaseSync = async () => {
+    if (!confirm('This will sync all FTP registrations to the MySQL database. Continue?')) return;
+    setSyncLoading(true);
+    try {
+      const res = await axiosInstance.post('/sync-db');
+      setSyncStatus(res.data);
+      showToast(`Sync completed: ${res.data.syncedCount} synced, ${res.data.errorCount} errors`);
+      fetchMysqlRegistrations();
+    } catch (e: any) {
+      showToast(e.response?.data?.error || 'Sync failed', 'error');
+    } finally {
+      setSyncLoading(false);
+    }
   };
 
   const fetchSystemStatus = async () => {
@@ -279,6 +326,7 @@ export default function AdminDashboard() {
       fetchSystemStatus();
       if (activeTab === 'feed') fetchRegistrations();
       if (activeTab === 'explorer') fetchExplorer(explorerPath);
+      if (activeTab === 'mysql') fetchMysqlRegistrations();
       if (activeTab === 'reports') {
         if (reportSubTab === 'stats') {
           fetchReports('', 'daily-stats');
@@ -300,6 +348,16 @@ export default function AdminDashboard() {
       return () => clearTimeout(delay);
     }
   }, [filters, fetchRegistrations, token, activeTab]);
+
+  // Debounce MySQL filter changes  
+  useEffect(() => {
+    if (token && activeTab === 'mysql') {
+      const delay = setTimeout(() => {
+        fetchMysqlRegistrations();
+      }, 600);
+      return () => clearTimeout(delay);
+    }
+  }, [mysqlFilters, fetchMysqlRegistrations, token, activeTab]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -552,7 +610,10 @@ export default function AdminDashboard() {
               <span style={{ fontSize: '1.1rem' }}>☷</span> FEED
             </button>
             <button className={`btn btn-sm ${activeTab === 'explorer' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('explorer')}>
-              <span style={{ fontSize: '1.1rem' }}>📂</span> EXPLORER
+              <span style={{ fontSize: '1.1rem' }}>📂</span> FTP
+            </button>
+            <button className={`btn btn-sm ${activeTab === 'mysql' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('mysql')}>
+              <span style={{ fontSize: '1.1rem' }}>💾</span> MYSQL
             </button>
             <button className={`btn btn-sm ${activeTab === 'reports' ? 'btn-cyan' : ''}`} onClick={() => setActiveTab('reports')}>
               <span style={{ fontSize: '1.1rem' }}>📊</span> REPORTS
@@ -592,6 +653,7 @@ export default function AdminDashboard() {
                 <div className="dropdown-content">
                   <button onClick={reindexSystem}>🔄 RE-INDEX SYSTEM (FIX SLOWNESS)</button>
                   <button onClick={fetchSystemStatus}>📡 CHECK FTP STATUS</button>
+                  <button onClick={triggerDatabaseSync} disabled={syncLoading}>{syncLoading ? '⟳ SYNCING...' : '💾 SYNC TO MYSQL'}</button>
                 </div>
              </div>
 
@@ -849,6 +911,69 @@ export default function AdminDashboard() {
                 </div>
               </>
             )}
+          </div>
+        ) : activeTab === 'mysql' ? (
+          <div className="card">
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>💾 MYSQL DATABASE - REGISTRATIONS ({mysqlRegistrations.length})</span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-sm btn-green" onClick={triggerDatabaseSync} disabled={syncLoading}>
+                  {syncLoading ? '⟳ SYNCING...' : '🔄 SYNC NOW'}
+                </button>
+                <button className="btn btn-sm btn-cyan" onClick={fetchMysqlRegistrations} disabled={mysqlLoading}>
+                  {mysqlLoading ? '⟳ LOADING...' : '⟳ REFRESH'}
+                </button>
+              </div>
+            </div>
+
+            <div className="filter-bar">
+              <div className="filter-group"><label>Search</label><input name="search" value={mysqlFilters.search} onChange={(e) => setMysqlFilters({...mysqlFilters, search: e.target.value})} placeholder="Name, UTR, Team..." /></div>
+              <div className="filter-group"><label>Status</label><select name="status" value={mysqlFilters.status} onChange={(e) => setMysqlFilters({...mysqlFilters, status: e.target.value})}><option value="">ALL</option><option value="pending">PENDING</option><option value="verified">VERIFIED</option><option value="rejected">REJECTED</option></select></div>
+              <div className="filter-group"><label>Event</label>
+                <select name="event" value={mysqlFilters.event} onChange={(e) => setMysqlFilters({...mysqlFilters, event: e.target.value})}>
+                  <option value="">ALL EVENTS</option>
+                  {EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {syncStatus && (
+              <div style={{ background: 'rgba(0, 245, 255, 0.1)', border: '1px solid var(--neon-cyan)', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
+                <strong>Last Sync:</strong> {syncStatus.syncedCount} synced, {syncStatus.errorCount} errors
+              </div>
+            )}
+
+            <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>TEAM NAME</th><th>LEAD NAME</th><th>EVENT</th><th>EMAIL</th><th>PHONE</th><th>INSTITUTION</th><th>UTR</th><th>STATUS</th><th>UPDATED</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mysqlLoading ? (
+                    <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem' }}>LOADING FROM DATABASE...</td></tr>
+                  ) : mysqlRegistrations.length === 0 ? (
+                    <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>NO REGISTRATIONS IN DATABASE</td></tr>
+                  ) : (
+                    mysqlRegistrations.map((reg: any) => (
+                      <tr key={reg.id}>
+                        <td style={{ fontWeight: 'bold' }}>#{reg.id}</td>
+                        <td className="text-cyan">{reg.teamName || '—'}</td>
+                        <td>{reg.leaderName || '—'}</td>
+                        <td style={{ fontSize: '0.75rem' }}>{reg.eventName || '—'}</td>
+                        <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.leaderEmail || '—'}</td>
+                        <td>{reg.leaderPhone || '—'}</td>
+                        <td style={{ fontSize: '0.75rem', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reg.institution || '—'}</td>
+                        <td className="utr-value">{reg.transactionId || '—'}</td>
+                        <td><span className={`badge badge-${reg.status}`}>{(reg.status || 'unknown').toUpperCase()}</span></td>
+                        <td style={{ fontSize: '0.7rem' }}>{new Date(reg.updatedAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
