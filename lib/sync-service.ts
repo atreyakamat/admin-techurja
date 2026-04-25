@@ -24,14 +24,14 @@ function parseRegistrationData(csvContent: string): Record<string, any> {
 
     const result: Record<string, any> = {};
 
-    if (records.length >= 2) {
-      const headers = records[0];
-      const data = records[1];
-
-      headers.forEach((h: string, i: number) => {
-        result[h] = data[i] || '';
-      });
-    }
+    // CSV is in key-value format: each row is ["key", "value"]
+    records.forEach((row: any[]) => {
+      if (row.length >= 2) {
+        const key = row[0];
+        const value = row[1];
+        result[key] = value || '';
+      }
+    });
 
     return result;
   } catch (error) {
@@ -42,8 +42,8 @@ function parseRegistrationData(csvContent: string): Record<string, any> {
 
 export async function syncRegistrationToDb(registrationId: string, registrationData: Record<string, any>) {
   try {
-    const eventName = registrationData['Event Name'] || registrationData['eventName'] || '';
-    const eventSlug = eventName.toLowerCase().replace(/\s+/g, '-');
+    const eventName = registrationData['event_name'] || registrationData['Event Name'] || registrationData['eventName'] || '';
+    const eventSlug = registrationData['event_slug'] || eventName.toLowerCase().replace(/\s+/g, '-') || '';
 
     const insertSql = `
       INSERT INTO registrations (
@@ -72,20 +72,20 @@ export async function syncRegistrationToDb(registrationId: string, registrationD
 
     const values = [
       registrationId,
-      registrationData['Team Name'] || registrationData['teamName'] || '',
-      registrationData['Leader Name'] || registrationData['leaderName'] || registrationData['Name'] || '',
-      registrationData['Email'] || registrationData['leaderEmail'] || '',
-      registrationData['Phone'] || registrationData['leaderPhone'] || '',
-      registrationData['Participant 2'] || registrationData['participant2'] || '',
-      registrationData['Participant 3'] || registrationData['participant3'] || '',
-      registrationData['Participant 4'] || registrationData['participant4'] || '',
-      registrationData['Institution'] || registrationData['institution'] || '',
+      registrationData['team_name'] || registrationData['Team Name'] || registrationData['teamName'] || '',
+      registrationData['name'] || registrationData['Leader Name'] || registrationData['leaderName'] || registrationData['Name'] || '',
+      registrationData['email'] || registrationData['Email'] || registrationData['leaderEmail'] || '',
+      registrationData['phone'] || registrationData['Phone'] || registrationData['leaderPhone'] || '',
+      registrationData['participant2'] || registrationData['Participant 2'] || registrationData['participant2'] || '',
+      registrationData['participant3'] || registrationData['Participant 3'] || registrationData['participant3'] || '',
+      registrationData['participant4'] || registrationData['Participant 4'] || registrationData['participant4'] || '',
+      registrationData['institution'] || registrationData['Institution'] || registrationData['institution'] || '',
       eventName,
       eventSlug,
-      registrationData['UTR'] || registrationData['transactionId'] || registrationData['Transaction ID'] || '',
-      registrationData['Status'] || registrationData['status'] || 'pending',
-      registrationData['Needs Accommodation'] === 'Yes' ? 1 : 0,
-      registrationData['Accepted'] === 'Yes' || registrationData['isAccepted'] === 'true' ? 1 : 0,
+      registrationData['transaction_id'] || registrationData['UTR'] || registrationData['transactionId'] || registrationData['Transaction ID'] || '',
+      registrationData['status'] || registrationData['Status'] || 'pending',
+      registrationData['needs_accommodation'] === 'YES' ? 1 : 0,
+      registrationData['isAccepted'] === 'Yes' || registrationData['isAccepted'] === 'true' ? 1 : 0,
       JSON.stringify(registrationData),
     ];
 
