@@ -107,18 +107,30 @@ export default function CoordinatorPortal() {
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
               {events.map((evt) => (
-                <button
-                  key={evt.slug}
-                  onClick={() => handleEventChange(evt.name)}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    event === evt.name
-                      ? 'bg-purple-600 text-white shadow-lg'
-                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {evt.name}
-                </button>
+                <div key={evt.slug} className="flex flex-col gap-2">
+                  <button
+                    onClick={() => handleEventChange(evt.name)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition ${
+                      event === evt.name
+                        ? 'bg-purple-600 text-white shadow-lg'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {evt.name}
+                  </button>
+                  <a
+                    href={`/coordinator/${evt.slug}`}
+                    className="px-3 py-1 text-xs bg-green-900 hover:bg-green-800 text-green-200 rounded text-center transition"
+                    title="Direct link with password protection"
+                  >
+                    🔗 Direct Link
+                  </a>
+                </div>
               ))}
+            </div>
+            <div className="mt-4 p-3 bg-slate-700 rounded-lg text-sm text-gray-300">
+              <p>💡 <strong>Direct Links:</strong> Click "🔗 Direct Link" below each event for a dedicated page</p>
+              <p className="text-xs text-gray-400 mt-1">Password: <code className="bg-slate-800 px-2 py-1 rounded">AitdGoa@123</code></p>
             </div>
           </div>
         </div>

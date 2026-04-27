@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
-import axios from 'axios';
 
 export default function CoordinatorPage({ params }: { params: Promise<{ eventSlug: string }> }) {
   const { eventSlug } = use(params);
@@ -46,21 +45,35 @@ export default function CoordinatorPage({ params }: { params: Promise<{ eventSlu
     }
   }, [eventSlug]);
 
+  const COORDINATOR_PASSWORD = 'AitdGoa@123';
+
   const handleLogin = async (e: React.FormEvent | null, passOverride?: string) => {
     if (e) e.preventDefault();
     const passToUse = passOverride || password;
     if (!passToUse) return;
 
+    // Check password
+    if (passToUse !== COORDINATOR_PASSWORD) {
+      setError('Invalid Password');
+      setIsLoggedIn(false);
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`/api/admin/coordinator?event=${encodeURIComponent(realName)}&password=${encodeURIComponent(passToUse)}`);
-      setRegistrations(res.data.registrations);
-      setEventName(res.data.eventName);
-      setIsLoggedIn(true);
-      localStorage.setItem(`coord_pass_${eventSlug}`, passToUse);
+      const res = await fetch(`/api/coordinator/registrations?event=${encodeURIComponent(realName)}`);
+      const data = await res.json();
+      if (data.success) {
+        setRegistrations(data.data);
+        setEventName(realName);
+        setIsLoggedIn(true);
+        localStorage.setItem(`coord_pass_${eventSlug}`, passToUse);
+      } else {
+        setError('Failed to load registrations');
+      }
     } catch (err: any) {
-      setError(err.response?.status === 401 ? 'Invalid Password' : 'Failed to load registrations');
+      setError('Failed to load registrations');
       setIsLoggedIn(false);
     } finally {
       setLoading(false);
