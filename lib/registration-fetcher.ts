@@ -62,6 +62,11 @@ export async function fetchRegistrationsFromFolders(client: ftp.Client): Promise
       reg.transactionId = getVal(record, ['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
       reg.institution = getVal(record, ['institution', 'college', 'College', 'Institution Name']) || '—';
       
+      // Store individual participants
+      reg.participant2 = getVal(record, ['participant2', 'Participant 2 Name']) || '—';
+      reg.participant3 = getVal(record, ['participant3', 'Participant 3 Name']) || '—';
+      reg.participant4 = getVal(record, ['participant4', 'Participant 4 Name']) || '—';
+
       let count = 1;
       for (let i = 2; i <= 4; i++) {
         const pName = getVal(record, [`participant${i}`, `Participant ${i} Name`]);

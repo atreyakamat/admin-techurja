@@ -131,55 +131,98 @@ export async function GET(request: NextRequest) {
 
     filteredRegs.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+    // Group registrations by event
+    const groupedRegs: Record<string, any[]> = {};
+    filteredRegs.forEach((reg: any) => {
+      const eventName = reg.eventName || 'Uncategorized';
+      if (!groupedRegs[eventName]) {
+        groupedRegs[eventName] = [];
+      }
+      groupedRegs[eventName].push(reg);
+    });
+
     // Create Excel Workbook
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Registrations');
-
-    worksheet.columns = [
-      { header: 'Sr No.', key: 'srNo', width: 10 },
-      { header: 'Date', key: 'date', width: 15 },
-      { header: 'Transaction ID', key: 'utr', width: 25 },
-      { header: 'Team Name/Individual name', key: 'name', width: 30 },
-      { header: 'Full Amount', key: 'amount', width: 20 },
-      { header: 'Event Name', key: 'event', width: 25 }
+    
+    // Create Summary Sheet
+    const summarySheet = workbook.addWorksheet('Summary');
+    summarySheet.columns = [
+      { header: 'Event Name', key: 'event', width: 30 },
+      { header: 'Total Registrations', key: 'count', width: 20 }
     ];
+    summarySheet.getRow(1).font = { bold: true };
+    
+    Object.keys(groupedRegs).sort().forEach(eventName => {
+      summarySheet.addRow({
+        event: eventName,
+        count: groupedRegs[eventName].length
+      });
+    });
 
-    // Style headers
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
+    // Create Event-wise Sheets
+    Object.keys(groupedRegs).sort().forEach(eventName => {
+      const safeSheetName = eventName.substring(0, 31).replace(/[\\\/\?\*\[\]]/g, '');
+      const worksheet = workbook.addWorksheet(safeSheetName);
 
-    filteredRegs.forEach((reg: any, index: number) => {
-      const teamOrIndiv = reg.teamName && reg.teamName !== '—' ? reg.teamName : reg.name;
-      
-      // Improved amount detection - for now use fallback to event pricing
-      let amount = '—';
-      
-      // Fallback to event-details.csv
-      if (reg.eventName) {
-        const eventKey = reg.eventName.toLowerCase().trim();
-        const feeConfig = eventPricing[eventKey];
-        if (feeConfig) {
-          if (feeConfig.includes(';')) {
-            // Complex fee string like "15kgs:1180; 8kgs:944; 3lbs:590"
-            const tiers = feeConfig.split(';').map(t => t.trim());
-            amount = tiers[0].split(':')[1]?.trim() || feeConfig;
-          } else {
-            amount = feeConfig;
+      worksheet.columns = [
+        { header: 'Sr No.', key: 'srNo', width: 8 },
+        { header: 'Reg ID', key: 'id', width: 12 },
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'Team Name', key: 'teamName', width: 25 },
+        { header: 'Lead Name', key: 'leadName', width: 25 },
+        { header: 'Email', key: 'email', width: 25 },
+        { header: 'Phone', key: 'phone', width: 15 },
+        { header: 'Institution', key: 'institution', width: 30 },
+        { header: 'Member 2', key: 'p2', width: 20 },
+        { header: 'Member 3', key: 'p3', width: 20 },
+        { header: 'Member 4', key: 'p4', width: 20 },
+        { header: 'Transaction ID', key: 'utr', width: 20 },
+        { header: 'Amount Paid', key: 'amount', width: 15 },
+        { header: 'Accommodation', key: 'accom', width: 15 },
+        { header: 'Status', key: 'status', width: 12 }
+      ];
+
+      // Style headers
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+
+      groupedRegs[eventName].forEach((reg: any, index: number) => {
+        // Improved amount detection - for now use fallback to event pricing
+        let amount = '—';
+        if (reg.eventName) {
+          const eventKey = reg.eventName.toLowerCase().trim();
+          const feeConfig = eventPricing[eventKey];
+          if (feeConfig) {
+            if (feeConfig.includes(';')) {
+              const tiers = feeConfig.split(';').map(t => t.trim());
+              amount = tiers[0].split(':')[1]?.trim() || feeConfig;
+            } else {
+              amount = feeConfig;
+            }
           }
         }
-      }
 
-      worksheet.addRow({
-        srNo: index + 1,
-        date: new Date(reg.createdAt).toLocaleDateString('en-GB'),
-        utr: reg.transactionId || '—',
-        name: teamOrIndiv,
-        amount: amount,
-        event: reg.eventName
+        worksheet.addRow({
+          srNo: index + 1,
+          id: reg.id,
+          date: new Date(reg.createdAt).toLocaleDateString('en-GB'),
+          teamName: reg.teamName || '—',
+          leadName: reg.name,
+          email: reg.email,
+          phone: reg.phone,
+          institution: reg.institution || '—',
+          p2: reg.participant2 || '—',
+          p3: reg.participant3 || '—',
+          p4: reg.participant4 || '—',
+          utr: reg.transactionId || '—',
+          amount: amount,
+          accom: reg.needsAccommodation ? 'YES' : 'NO',
+          status: (reg.status || 'pending').toUpperCase()
+        });
       });
     });
 
@@ -188,7 +231,7 @@ export async function GET(request: NextRequest) {
     return new Response(buffer as any, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="registrations_${new Date().toISOString().slice(0,10)}.xlsx"`,
+        'Content-Disposition': `attachment; filename="event_wise_registrations_${new Date().toISOString().slice(0,10)}.xlsx"`,
       },
     });
   } catch (error: any) {
