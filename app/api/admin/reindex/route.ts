@@ -155,6 +155,11 @@ export async function POST(request: NextRequest) {
         reg.transactionId = getVal(['transaction_id', 'transactionId', 'UTR', 'Transaction ID']) || '—';
         reg.institution = getVal(['institution', 'college', 'College', 'Institution Name']) || '—';
         
+        // Store individual participants
+        reg.participant2 = getVal(['participant2', 'Participant 2 Name']) || '—';
+        reg.participant3 = getVal(['participant3', 'Participant 3 Name']) || '—';
+        reg.participant4 = getVal(['participant4', 'Participant 4 Name']) || '—';
+
         let count = 1;
         for (let i = 2; i <= 4; i++) {
           const pName = getVal([`participant${i}`, `Participant ${i} Name`]);

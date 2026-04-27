@@ -159,28 +159,37 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Create Event-wise Sheets
+    // Create Event-wise Sheets with Dynamic Columns
     Object.keys(groupedRegs).sort().forEach(eventName => {
+      const regs = groupedRegs[eventName];
       const safeSheetName = eventName.substring(0, 31).replace(/[\\\/\?\*\[\]]/g, '');
       const worksheet = workbook.addWorksheet(safeSheetName);
 
-      worksheet.columns = [
-        { header: 'Sr No.', key: 'srNo', width: 8 },
-        { header: 'Reg ID', key: 'id', width: 12 },
-        { header: 'Date', key: 'date', width: 12 },
-        { header: 'Team Name', key: 'teamName', width: 25 },
-        { header: 'Lead Name', key: 'leadName', width: 25 },
-        { header: 'Email', key: 'email', width: 25 },
-        { header: 'Phone', key: 'phone', width: 15 },
-        { header: 'Institution', key: 'institution', width: 30 },
-        { header: 'Member 2', key: 'p2', width: 20 },
-        { header: 'Member 3', key: 'p3', width: 20 },
-        { header: 'Member 4', key: 'p4', width: 20 },
-        { header: 'Transaction ID', key: 'utr', width: 20 },
-        { header: 'Amount Paid', key: 'amount', width: 15 },
-        { header: 'Accommodation', key: 'accom', width: 15 },
-        { header: 'Status', key: 'status', width: 12 }
+      // Collect all unique keys from all registrations in this event
+      const dynamicKeys = new Set<string>();
+      regs.forEach(reg => {
+        if (reg._raw) {
+          Object.keys(reg._raw).forEach(key => dynamicKeys.add(key));
+        }
+      });
+
+      // Define columns: Start with standard ones, then all dynamic ones
+      const columns: any[] = [
+        { header: 'Reg ID', key: 'id', width: 15 },
+        { header: 'Status', key: 'status', width: 12 },
+        { header: 'Accepted?', key: 'isAccepted', width: 12 },
+        { header: 'Registration Date', key: 'createdAt', width: 20 }
       ];
+
+      // Add all dynamic keys found in CSVs, avoiding duplicates of standard fields
+      const standardKeys = ['id', 'status', 'isAccepted', 'createdAt'];
+      Array.from(dynamicKeys).sort().forEach(key => {
+        if (!standardKeys.includes(key)) {
+          columns.push({ header: key.toUpperCase().replace(/_/g, ' '), key: key, width: 20 });
+        }
+      });
+
+      worksheet.columns = columns;
 
       // Style headers
       worksheet.getRow(1).font = { bold: true };
@@ -190,48 +199,36 @@ export async function GET(request: NextRequest) {
         fgColor: { argb: 'FFE0E0E0' }
       };
 
-      groupedRegs[eventName].forEach((reg: any, index: number) => {
-        // Improved amount detection - for now use fallback to event pricing
-        let amount = '—';
-        if (reg.eventName) {
-          const eventKey = reg.eventName.toLowerCase().trim();
-          const feeConfig = eventPricing[eventKey];
-          if (feeConfig) {
-            if (feeConfig.includes(';')) {
-              const tiers = feeConfig.split(';').map(t => t.trim());
-              amount = tiers[0].split(':')[1]?.trim() || feeConfig;
-            } else {
-              amount = feeConfig;
-            }
-          }
+      // Add rows
+      regs.forEach((reg: any) => {
+        const rowData: any = {
+          id: reg.id,
+          status: (reg.status || 'pending').toUpperCase(),
+          isAccepted: reg.isAccepted === 1 ? 'YES' : 'NO',
+          createdAt: new Date(reg.createdAt).toLocaleString('en-GB')
+        };
+
+        // Fill in all dynamic fields from _raw
+        if (reg._raw) {
+          Object.keys(reg._raw).forEach(key => {
+            rowData[key] = reg._raw[key] || '—';
+          });
         }
 
-        worksheet.addRow({
-          srNo: index + 1,
-          id: reg.id,
-          date: new Date(reg.createdAt).toLocaleDateString('en-GB'),
-          teamName: reg.teamName || '—',
-          leadName: reg.name,
-          email: reg.email,
-          phone: reg.phone,
-          institution: reg.institution || '—',
-          p2: reg.participant2 || '—',
-          p3: reg.participant3 || '—',
-          p4: reg.participant4 || '—',
-          utr: reg.transactionId || '—',
-          amount: amount,
-          accom: reg.needsAccommodation ? 'YES' : 'NO',
-          status: (reg.status || 'pending').toUpperCase()
-        });
+        worksheet.addRow(rowData);
       });
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
 
+    const fileName = eventFilter 
+      ? `event_report_${eventFilter.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`
+      : `master_export_${new Date().toISOString().slice(0,10)}.xlsx`;
+
     return new Response(buffer as any, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="event_wise_registrations_${new Date().toISOString().slice(0,10)}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${fileName}"`,
       },
     });
   } catch (error: any) {

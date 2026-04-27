@@ -688,6 +688,9 @@ export default function AdminDashboard() {
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                   <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
+                  {filters.event && (
+                    <button className="btn btn-green" onClick={exportToCSV}>📊 EVENT SPEC REPORT</button>
+                  )}
                   <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
                 </div>
               </div>
