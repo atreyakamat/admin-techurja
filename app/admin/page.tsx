@@ -491,6 +491,41 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportToZIP = async () => {
+    if (!filters.event) return showToast('Please select an event first', 'error');
+    
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      params.append('event', filters.event);
+      
+      const response = await fetch(`${API_BASE_URL}/export-zip?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `event_bundle_${filters.event.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.zip`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('ZIP file exported successfully', 'success');
+    } catch (e: any) {
+      showToast(e.message || 'Failed to export ZIP file', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const exportToPDF = async () => {
     try {
       setLoading(true);
@@ -689,7 +724,12 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                   <button className="btn btn-cyan" onClick={fetchRegistrations} disabled={loading}>{loading ? '⟳...' : '⟳ REFRESH'}</button>
                   {filters.event && (
-                    <button className="btn btn-green" onClick={exportToCSV}>📊 EVENT SPEC REPORT</button>
+                    <>
+                      <button className="btn btn-green" onClick={exportToCSV}>📊 EXCEL REPORT</button>
+                      <button className="btn btn-yellow" onClick={exportToZIP} disabled={loading}>
+                        {loading ? '📦 ZIPPING...' : '📦 DOWNLOAD ZIP'}
+                      </button>
+                    </>
                   )}
                   <button className="btn btn-yellow btn-sm" onClick={clearFilters}>✕ CLEAR</button>
                 </div>
