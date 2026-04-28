@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
     const fileName = `event_bundle_${eventFilter.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.zip`;
 
-    return new Response(zipBuffer, {
+    return new Response(new Uint8Array(zipBuffer), {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${fileName}"`,
